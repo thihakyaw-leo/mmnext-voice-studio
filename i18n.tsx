@@ -152,6 +152,56 @@ export interface TranslationDict {
   pitchDistribution: string;
   pitchChartTitle: string;
   closeChart: string;
+  shortcutNavArrows: string;
+  shortcutNavGrid: string;
+  shortcutPlayPause: string;
+  shortcutWheel: string;
+  voiceTagsLabel: string;
+  pitchRangeTagLabel: string;
+  emotionalToneTagLabel: string;
+  signInWithGoogle: string;
+  signingIn: string;
+  signOut: string;
+  cloudSynced: string;
+  syncingCloud: string;
+  cloudAccountSection: string;
+  cloudSyncHint: string;
+  favoritesDrawerSyncedSubtitle: string;
+  recentCloudCastings: string;
+  deleteCasting: string;
+  loginTitle: string;
+  loginSubtitle: string;
+  continueWithGoogle: string;
+  continueAsGuest: string;
+  loginBenefitFavorites: string;
+  loginBenefitNames: string;
+  loginBenefitPrefs: string;
+  loginBenefitHistory: string;
+  favoritesSyncPrompt: string;
+  shareVoice: string;
+  shareCompare: string;
+  shareModalTitle: string;
+  shareCompareModalTitle: string;
+  shareModalSubtitle: string;
+  uniqueShareLink: string;
+  copyLink: string;
+  linkCopied: string;
+  socialMediaSnippet: string;
+  copySnippet: string;
+  snippetCopied: string;
+  shareViaWebShare: string;
+  webShareUnsupportedHint: string;
+  webShareFailed: string;
+  snippetStyleShort: string;
+  snippetStyleDetailed: string;
+  pitchMinHz: string;
+  pitchMaxHz: string;
+  resetPitchRange: string;
+  signInRequiredNotice: string;
+  dailyFreeLimitLabel: string;
+  quotaRemainingShort: (remaining: number, limit: number) => string;
+  dailyQuotaTooltip: (userRem: number, userLim: number, globalRem: number, globalLim: number) => string;
+  dailyQuotaExhaustedBanner: string;
 }
 
 const TRANSLATIONS: Record<Language, TranslationDict> = {
@@ -299,6 +349,58 @@ const TRANSLATIONS: Record<Language, TranslationDict> = {
     pitchDistribution: 'Pitch Distribution',
     pitchChartTitle: 'Voice Library Pitch Distribution',
     closeChart: 'Close Chart',
+    shortcutNavArrows: 'Navigate',
+    shortcutNavGrid: 'Grid Nav',
+    shortcutPlayPause: 'Play / Pause',
+    shortcutWheel: 'Wheel',
+    voiceTagsLabel: 'Voice attributes',
+    pitchRangeTagLabel: 'Pitch range',
+    emotionalToneTagLabel: 'Emotional tone',
+    signInWithGoogle: 'Sign In',
+    signingIn: 'Signing in...',
+    signOut: 'Sign Out',
+    cloudSynced: 'Cloud Synced',
+    syncingCloud: 'Syncing...',
+    cloudAccountSection: 'Cloud Sync',
+    cloudSyncHint: 'Sync favorites, Burmese names & AI castings',
+    favoritesDrawerSyncedSubtitle: 'Synced automatically with your Google account',
+    recentCloudCastings: 'Recent Cloud Castings',
+    deleteCasting: 'Delete casting',
+    loginTitle: 'Sign in to MMNext Voice Studio',
+    loginSubtitle: 'Connect your Google account to back up and sync your workspace across devices.',
+    continueWithGoogle: 'Continue with Google',
+    continueAsGuest: 'Continue as Guest',
+    loginBenefitFavorites: 'Sync favorite voices across browsers & devices',
+    loginBenefitNames: 'Save personalized Burmese character names',
+    loginBenefitPrefs: 'Remember theme, language & visualizer mode',
+    loginBenefitHistory: 'Access recent AI Casting Director results',
+    favoritesSyncPrompt: 'Sign in to sync favorites across devices',
+    shareVoice: 'Share voice',
+    shareCompare: 'Share Pair',
+    shareModalTitle: 'Share Voice Persona',
+    shareCompareModalTitle: 'Share Voice Comparison',
+    shareModalSubtitle: 'Copy a direct link, grab a social post snippet, or share using your device.',
+    uniqueShareLink: 'Unique Share Link',
+    copyLink: 'Copy Link',
+    linkCopied: 'Copied',
+    socialMediaSnippet: 'Social Media Snippet',
+    copySnippet: 'Copy Snippet',
+    snippetCopied: 'Snippet Copied',
+    shareViaWebShare: 'Share with Device / Apps',
+    webShareUnsupportedHint: 'System share sheet is unavailable in this browser — copy the link or snippet above.',
+    webShareFailed: 'Could not open system share sheet. You can copy the link or snippet instead.',
+    snippetStyleShort: 'Short Post',
+    snippetStyleDetailed: 'Detailed',
+    pitchMinHz: 'Min Hz',
+    pitchMaxHz: 'Max Hz',
+    resetPitchRange: 'Reset Hz range',
+    signInRequiredNotice: 'Guest access is disabled. Sign in with Google to enter the studio.',
+    dailyFreeLimitLabel: 'Gemini Daily Free Limit',
+    quotaRemainingShort: (remaining: number, limit: number) => `${remaining}/${limit} Free`,
+    dailyQuotaTooltip: (userRem: number, userLim: number, globalRem: number, globalLim: number) =>
+      `Your daily free AI/TTS quota: ${userRem}/${userLim} left · Studio pool: ${globalRem}/${globalLim} left (resets midnight PT)`,
+    dailyQuotaExhaustedBanner:
+      'Daily free Gemini limit reached. Cached voice samples still play; live AI Casting & new TTS reset at midnight PT.',
   },
   mm: {
     appTitle: 'MMNext Voice Studio',
@@ -444,6 +546,58 @@ const TRANSLATIONS: Record<Language, TranslationDict> = {
     pitchDistribution: 'အသံအနိမ့်အမြင့် ဖြန့်ခွဲမှု',
     pitchChartTitle: 'အသံစာကြည့်တိုက် အနိမ့်အမြင့် ဖြန့်ခွဲမှု ဂရပ်',
     closeChart: 'ဂရပ်ပိတ်ရန်',
+    shortcutNavArrows: 'ရွေ့ရန်',
+    shortcutNavGrid: 'ဇယားကွက် ရွေ့ရန်',
+    shortcutPlayPause: 'ဖွင့် / ရပ်',
+    shortcutWheel: 'မောက်စ်ဘီး',
+    voiceTagsLabel: 'အသံအချက်အလက် တဂ်များ',
+    pitchRangeTagLabel: 'ကြိမ်နှုန်းအပိုင်းအခြား',
+    emotionalToneTagLabel: 'ခံစားချက်လေသံ',
+    signInWithGoogle: 'ဝင်ရောက်ရန်',
+    signingIn: 'ဝင်ရောက်နေသည်...',
+    signOut: 'ထွက်ရန်',
+    cloudSynced: 'Cloud ချိတ်ဆက်ပြီး',
+    syncingCloud: 'ချိတ်ဆက်နေသည်...',
+    cloudAccountSection: 'Cloud သိမ်းဆည်းမှု',
+    cloudSyncHint: 'အနှစ်သက်ဆုံးများ၊ အမည်များနှင့် AI မှတ်တမ်းများ သိမ်းဆည်းရန်',
+    favoritesDrawerSyncedSubtitle: 'သင့် Google အကောင့်နှင့် အလိုအလျောက် ချိတ်ဆက်ထားသည်',
+    recentCloudCastings: 'မကြာသေးမီက Cloud ရွေးချယ်မှုများ',
+    deleteCasting: 'မှတ်တမ်းဖျက်ရန်',
+    loginTitle: 'MMNext Voice Studio သို့ ဝင်ရောက်ရန်',
+    loginSubtitle: 'သင့် Google အကောင့်နှင့် ချိတ်ဆက်ပြီး စက်ပစ္စည်းများအကြား ဒေတာများကို သိမ်းဆည်းပါ။',
+    continueWithGoogle: 'Google ဖြင့် ဆက်လက်ဝင်ရောက်မည်',
+    continueAsGuest: 'ဧည့်သည်အဖြစ် ဆက်သုံးမည်',
+    loginBenefitFavorites: 'အနှစ်သက်ဆုံးအသံများကို Cloud တွင် သိမ်းဆည်းရန်',
+    loginBenefitNames: 'မြန်မာဇာတ်ကောင်အမည်များကို သိမ်းဆည်းထားရန်',
+    loginBenefitPrefs: 'အလင်း/အမှောင်၊ ဘာသာစကားနှင့် Visualizer ပုံစံ မှတ်သားရန်',
+    loginBenefitHistory: 'AI အသံရွေးချယ်မှု မှတ်တမ်းများကို ပြန်ကြည့်ရန်',
+    favoritesSyncPrompt: 'Cloud တွင် သိမ်းဆည်းရန် အကောင့်ဝင်ပါ',
+    shareVoice: 'အသံမျှဝေရန်',
+    shareCompare: 'နှိုင်းယှဉ်မှု မျှဝေရန်',
+    shareModalTitle: 'အသံဇာတ်ကောင် မျှဝေရန်',
+    shareCompareModalTitle: 'အသံနှိုင်းယှဉ်မှု မျှဝေရန်',
+    shareModalSubtitle: 'တိုက်ရိုက်လင့်ခ် သို့မဟုတ် ဆိုရှယ်မီဒီယာစာသားကို ကူးယူ၍ မျှဝေနိုင်ပါသည်။',
+    uniqueShareLink: 'တိုက်ရိုက်မျှဝေရန် လင့်ခ်',
+    copyLink: 'လင့်ခ်ကူးယူရန်',
+    linkCopied: 'ကူးယူပြီးပါပြီ',
+    socialMediaSnippet: 'ဆိုရှယ်မီဒီယာ စာသားနမူနာ',
+    copySnippet: 'စာသားကူးယူရန်',
+    snippetCopied: 'စာသားကူးယူပြီး',
+    shareViaWebShare: 'စက်မှတစ်ဆင့် တိုက်ရိုက်မျှဝေမည်',
+    webShareUnsupportedHint: 'ဤဘရောက်ဆာတွင် စက်မှတိုက်ရိုက်မျှဝေမှု မရရှိနိုင်ပါ — အထက်ပါလင့်ခ် သို့မဟုတ် စာသားကို ကူးယူအသုံးပြုပါ။',
+    webShareFailed: 'စက်မှတိုက်ရိုက်မျှဝေမှု ဖွင့်မရပါ။ လင့်ခ် သို့မဟုတ် စာသားကို ကူးယူမျှဝေနိုင်ပါသည်။',
+    snippetStyleShort: 'အတိုချုံး',
+    snippetStyleDetailed: 'အသေးစိတ်',
+    pitchMinHz: 'အနိမ့် Hz',
+    pitchMaxHz: 'အမြင့် Hz',
+    resetPitchRange: 'Hz ပြန်လည်သတ်မှတ်ရန်',
+    signInRequiredNotice: 'ဧည့်သည်အဖြစ် အသုံးပြုခွင့် (Guest Mode) ကို ပိတ်ထားပါသည်။ ဆက်လက်အသုံးပြုရန် Google ဖြင့် ဝင်ရောက်ပါ။',
+    dailyFreeLimitLabel: 'Gemini နေ့စဉ် အခမဲ့ကန့်သတ်ချက်',
+    quotaRemainingShort: (remaining: number, limit: number) => `${remaining}/${limit} ကျန်`,
+    dailyQuotaTooltip: (userRem: number, userLim: number, globalRem: number, globalLim: number) =>
+      `သင့်နေ့စဉ် AI/TTS အခမဲ့ခွင့်ပြုချက် - ${userRem}/${userLim} ကျန် · Studio စုစုပေါင်း - ${globalRem}/${globalLim} ကျန် (Midnight PT တွင် ပြန်လည်စတင်သည်)`,
+    dailyQuotaExhaustedBanner:
+      'ယနေ့အတွက် Gemini အခမဲ့ကန့်သတ်ချက် ပြည့်သွားပါပြီ။ Cache ရှိပြီးသားအသံများကို ဆက်နားထောင်နိုင်ပြီး AI/TTS အသစ်များကို Midnight PT တွင် ပြန်သုံးနိုင်ပါမည်။',
   },
 };
 
@@ -463,6 +617,37 @@ const PITCH_MM: Record<string, string> = {
   Low: 'အနိမ့်',
 };
 
+const TONE_MM: Record<string, string> = {
+  Warm: 'နွေးထွေးသော',
+  Enthusiastic: 'စိတ်အားထက်သန်သော',
+  Energetic: 'တက်ကြွသော',
+  Calm: 'တည်ငြိမ်အေးဆေးသော',
+  Optimistic: 'အကောင်းမြင်သော',
+  Confident: 'ယုံကြည်မှုရှိသော',
+  Friendly: 'ဖော်ရွေသော',
+  Gentle: 'ညင်သာသော',
+  Lively: 'သက်ဝင်လှုပ်ရှားသော',
+  Excitable: 'စိတ်လှုပ်ရှားတက်ကြွသော',
+  Upbeat: 'ရွှင်လန်းတက်ကြွသော',
+  Inviting: 'ဖိတ်ခေါ်နွေးထွေးသော',
+  Motivating: 'အားပေးတိုက်တွန်းသော',
+  Encouraging: 'အားပေးသော',
+  Engaging: 'ဆွဲဆောင်မှုရှိသော',
+  Approachable: 'ရင်းနှီးလွယ်သော',
+  Inquisitive: 'စူးစမ်းလိုစိတ်ရှိသော',
+  Soft: 'နူးညံ့သော',
+  Bright: 'ကြည်လင်တောက်ပသော',
+  Breezy: 'ပေါ့ပါးလွတ်လပ်သော',
+  'Easy-going': 'သက်တောင့်သက်သာရှိသော',
+  Smooth: 'ချောမွေ့သော',
+  Sophisticated: 'တည်ငြိမ်ရင့်ကျက်သော',
+  Informative: 'ဗဟုသုတပေးသော',
+  Mature: 'ရင့်ကျက်သော',
+  Casual: 'ပေါ့ပေါ့ပါးပါး',
+  Firm: 'ခိုင်မာပြတ်သားသော',
+  Balanced: 'မျှတသော',
+};
+
 interface I18nContextValue {
   language: Language;
   setLanguage: (lang: Language) => void;
@@ -470,6 +655,7 @@ interface I18nContextValue {
   t: TranslationDict;
   translateGender: (gender: string) => string;
   translatePitch: (pitch: string) => string;
+  translateTone: (tone: string) => string;
 }
 
 const I18nContext = createContext<I18nContextValue | undefined>(undefined);
@@ -526,10 +712,15 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [language]
   );
 
+  const translateTone = useCallback(
+    (tone: string) => (language === 'mm' ? TONE_MM[tone] || tone : tone),
+    [language]
+  );
+
   const t = TRANSLATIONS[language];
 
   return (
-    <I18nContext.Provider value={{ language, setLanguage, toggleLanguage, t, translateGender, translatePitch }}>
+    <I18nContext.Provider value={{ language, setLanguage, toggleLanguage, t, translateGender, translatePitch, translateTone }}>
       {children}
     </I18nContext.Provider>
   );

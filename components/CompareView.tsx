@@ -15,6 +15,7 @@ import {
   Activity,
   Volume2,
   Columns2,
+  Share2,
 } from 'lucide-react';
 import { Voice } from '../types';
 import AudioVisualizer, { VisualizerVariant } from './AudioVisualizer';
@@ -38,6 +39,7 @@ interface CompareViewProps {
   onPlaySingle: (voiceName: string, slot: 'a' | 'b') => void;
   favorites: string[];
   onToggleFavorite: (voiceName: string) => void;
+  onSharePair?: (voiceA: Voice, voiceB: Voice) => void;
   visualizerVariant?: VisualizerVariant;
   analyserNode?: AnalyserNode | null;
 }
@@ -58,6 +60,7 @@ const CompareView: React.FC<CompareViewProps> = ({
   onPlaySingle,
   favorites,
   onToggleFavorite,
+  onSharePair,
   visualizerVariant = 'wave',
   analyserNode = null,
 }) => {
@@ -359,6 +362,19 @@ const CompareView: React.FC<CompareViewProps> = ({
                 <Shuffle size={14} />
                 <span className="hidden sm:inline">{t.randomPair}</span>
               </button>
+
+              {onSharePair && voiceA && voiceB && (
+                <button
+                  type="button"
+                  onClick={() => onSharePair(voiceA, voiceB)}
+                  title={t.shareCompare}
+                  aria-label={t.shareCompare}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-full text-xs font-medium bg-white/85 dark:bg-zinc-800 border border-zinc-300/80 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-zinc-700 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors active:scale-95"
+                >
+                  <Share2 size={14} />
+                  <span className="hidden sm:inline">{t.shareCompare}</span>
+                </button>
+              )}
             </div>
           </div>
 

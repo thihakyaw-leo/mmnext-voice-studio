@@ -5,18 +5,21 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI, Type } from '../genaiProxy';
-import { Sparkles, Loader2, X, ArrowRight, Wand2 } from 'lucide-react';
+import { Sparkles, Loader2, X, ArrowRight, Wand2, History, Trash2 } from 'lucide-react';
 import { Voice, AiRecommendation } from '../types';
 import { useI18n } from '../i18n';
+import { useFirebase } from './FirebaseProvider';
+import { deleteCastingHistoryInFirestore } from '../firebase';
 
 interface VoiceFinderProps {
   voices: Voice[];
-  onRecommendation: (rec: AiRecommendation | null) => void;
+  onRecommendation: (rec: AiRecommendation | null, promptText?: string) => void;
   onClose: () => void;
 }
 
 const VoiceFinder: React.FC<VoiceFinderProps> = ({ voices, onRecommendation, onClose }) => {
   const { t, language } = useI18n();
+  const { user, cloudCastingHistory } = useFirebase();
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,8 +98,8 @@ const VoiceFinder: React.FC<VoiceFinderProps> = ({ voices, onRecommendation, onC
 
         Task:
         1. Select the top 3 voices from the available list that best match the user's request. Return their exact "name" field values (e.g., "Zephyr", "Algenib") in recommendedVoices.
-        2. Create a detailed System Instruction that defines the persona/character.
-        3. Write a brief sample text paragraph (2-3 sentences).
+        2. Create a detailed System Instruction that defines the persona/character (specifying native Myanmar/Burmese pronunciation when appropriate).
+        3. Write a brief sample text paragraph (2-3 sentences) in natural Myanmar (Burmese) language so the voice preview speaks in Burmese.
 
         PROMPT STRUCTURE (Markdown):
         Ensure you use double newlines (\\n\\n) between sections so it renders correctly as markdown headers.
@@ -146,11 +149,14 @@ const VoiceFinder: React.FC<VoiceFinderProps> = ({ voices, onRecommendation, onC
       const result = JSON.parse(response.text || '{}');
 
       if (result.recommendedVoices && result.recommendedVoices.length > 0) {
-        onRecommendation({
-          voiceNames: result.recommendedVoices,
-          systemInstruction: result.systemInstruction,
-          sampleText: result.sampleText,
-        });
+        onRecommendation(
+          {
+            voiceNames: result.recommendedVoices,
+            systemInstruction: result.systemInstruction,
+            sampleText: result.sampleText,
+          },
+          query.trim()
+        );
       } else {
         setError(t.noMatchingVoicesError);
       }
@@ -240,6 +246,54 @@ const VoiceFinder: React.FC<VoiceFinderProps> = ({ voices, onRecommendation, onC
                 </button>
               ))}
             </div>
+
+            {user && cloudCastingHistory.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-zinc-300/60 dark:border-zinc-800 space-y-2">
+                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                  <History size={12} />
+                  <span>{t.recentCloudCastings}</span>
+                </div>
+                <div className="max-h-28 overflow-y-auto custom-scrollbar space-y-1.5 pr-1">
+                  {cloudCastingHistory.slice(0, 5).map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-white/80 dark:bg-zinc-800/80 border border-zinc-300/70 dark:border-zinc-700/80 text-xs"
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onRecommendation({
+                            voiceNames: item.voiceNames,
+                            systemInstruction: item.systemInstruction,
+                            sampleText: item.sampleText,
+                          })
+                        }
+                        className="flex-1 min-w-0 text-left truncate text-zinc-700 dark:text-zinc-200 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                        title={item.prompt}
+                      >
+                        <span className="font-medium">{item.prompt}</span>
+                        <span className="ml-2 text-[10px] text-zinc-400 dark:text-zinc-500">
+                          ({item.voiceNames.join(', ')})
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void deleteCastingHistoryInFirestore(user.uid, item.id).catch((err) =>
+                            console.error('Failed to delete casting history item:', err)
+                          );
+                        }}
+                        className="p-1 rounded-md text-zinc-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors shrink-0"
+                        aria-label={t.deleteCasting}
+                        title={t.deleteCasting}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex justify-between items-center mt-6 gap-4">
               <span className="text-zinc-500 dark:text-zinc-500 text-sm font-medium flex items-center gap-2">

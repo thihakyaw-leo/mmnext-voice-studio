@@ -18,10 +18,15 @@ import {
   FolderDown,
   AlertCircle,
   RotateCcw,
+  Cloud,
+  LogIn,
+  Share2,
 } from 'lucide-react';
 import { Voice } from '../types';
 import { useI18n } from '../i18n';
 import AudioVisualizer, { VisualizerVariant } from './AudioVisualizer';
+import { useFirebase } from './FirebaseProvider';
+import { getGeminiApiKeyHeaders, notifyGeminiQuotaUpdated } from '../firebase';
 
 interface FavoritesDrawerProps {
   isOpen: boolean;
@@ -41,6 +46,8 @@ interface FavoritesDrawerProps {
   visualizerVariant?: VisualizerVariant;
   analyserNode?: AnalyserNode | null;
   onResetBurmeseNames: () => void;
+  onOpenLogin: () => void;
+  onShare?: (voice: Voice) => void;
 }
 
 const FavoritesDrawer: React.FC<FavoritesDrawerProps> = ({
@@ -61,8 +68,11 @@ const FavoritesDrawer: React.FC<FavoritesDrawerProps> = ({
   visualizerVariant = 'wave',
   analyserNode = null,
   onResetBurmeseNames,
+  onOpenLogin,
+  onShare,
 }) => {
   const { t, language, translateGender, translatePitch } = useI18n();
+  const { user, cloudSynced } = useFirebase();
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [isDownloadingAllZip, setIsDownloadingAllZip] = useState(false);
   const [zipError, setZipError] = useState<string | null>(null);
@@ -150,13 +160,15 @@ const FavoritesDrawer: React.FC<FavoritesDrawerProps> = ({
     setZipError(null);
 
     try {
+      const authHeaders = await getGeminiApiKeyHeaders();
       const response = await fetch('/api/favorites-zip', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({
           voiceNames: favoriteVoices.map((v) => v.name),
         }),
       });
+      notifyGeminiQuotaUpdated();
 
       if (!response.ok) {
         const errBody = await response.json().catch(() => ({}));
@@ -234,7 +246,7 @@ const FavoritesDrawer: React.FC<FavoritesDrawerProps> = ({
                     </span>
                   </div>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-                    {t.favoritesDrawerSubtitle}
+                    {user && cloudSynced ? t.favoritesDrawerSyncedSubtitle : t.favoritesDrawerSubtitle}
                   </p>
                 </div>
               </div>
@@ -248,6 +260,26 @@ const FavoritesDrawer: React.FC<FavoritesDrawerProps> = ({
                 <X size={18} />
               </button>
             </div>
+
+            {!user && (
+              <div className="px-6 py-2.5 bg-indigo-50/70 dark:bg-indigo-950/30 border-b border-indigo-200/60 dark:border-indigo-900/50 flex items-center justify-between gap-3 shrink-0">
+                <span className="inline-flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300 min-w-0">
+                  <Cloud size={14} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+                  <span className="truncate">{t.favoritesSyncPrompt}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenLogin();
+                  }}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-800 dark:bg-indigo-600 hover:bg-zinc-700 dark:hover:bg-indigo-500 text-[#FDF7EB] dark:text-white text-xs font-semibold shrink-0 transition-colors"
+                >
+                  <LogIn size={12} />
+                  <span>{t.signInWithGoogle}</span>
+                </button>
+              </div>
+            )}
 
             {/* Action Bar */}
             {favoriteVoices.length > 0 && (
@@ -443,6 +475,18 @@ const FavoritesDrawer: React.FC<FavoritesDrawerProps> = ({
                                 ) : (
                                   <Download size={16} />
                                 )}
+                              </button>
+                            )}
+
+                            {onShare && (
+                              <button
+                                type="button"
+                                onClick={() => onShare(voice)}
+                                aria-label={`${t.shareVoice}: ${displayName}`}
+                                title={t.shareVoice}
+                                className="p-2 rounded-full text-zinc-500 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-zinc-200/70 dark:hover:bg-zinc-700 transition-colors"
+                              >
+                                <Share2 size={15} />
                               </button>
                             )}
 

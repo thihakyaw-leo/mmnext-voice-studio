@@ -136,3 +136,87 @@ export function getVoicePitchHz(voice: { pitch: string; analysis?: { gender?: st
   return isFemale ? 185 : 135;
 }
 
+export function getVoicePitchHzRange(voice: {
+  pitch: string;
+  analysis?: { gender?: string; pitch?: string };
+}): { min: number; max: number; label: string } {
+  const p = (voice.analysis?.pitch || voice.pitch || '').toLowerCase();
+  const g = (voice.analysis?.gender || '').toLowerCase();
+  const isFemale = g === 'female';
+
+  let min: number;
+  let max: number;
+
+  if (p.includes('medium-high')) {
+    min = isFemale ? 185 : 135;
+    max = isFemale ? 230 : 170;
+  } else if (p.includes('medium-low') || p.includes('lower middle')) {
+    min = isFemale ? 150 : 110;
+    max = isFemale ? 185 : 140;
+  } else if (p.includes('high') || p.includes('higher')) {
+    min = isFemale ? 200 : 145;
+    max = isFemale ? 255 : 185;
+  } else if (p.includes('low') || p.includes('lower')) {
+    min = isFemale ? 125 : 90;
+    max = isFemale ? 160 : 120;
+  } else {
+    min = isFemale ? 165 : 120;
+    max = isFemale ? 210 : 155;
+  }
+
+  return { min, max, label: `${min}–${max} Hz` };
+}
+
+const EMOTIONAL_TONE_KEYWORDS = [
+  'warm',
+  'enthusiastic',
+  'energetic',
+  'calm',
+  'optimistic',
+  'confident',
+  'friendly',
+  'gentle',
+  'lively',
+  'excitable',
+  'upbeat',
+  'inviting',
+  'motivating',
+  'encouraging',
+  'engaging',
+  'approachable',
+  'inquisitive',
+  'soft',
+  'bright',
+  'breezy',
+  'easy-going',
+  'smooth',
+  'sophisticated',
+  'informative',
+  'mature',
+  'casual',
+  'firm',
+];
+
+function capitalizeTone(str: string): string {
+  const trimmed = str.trim();
+  if (!trimmed) return '';
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
+export function getVoiceEmotionalTone(voice: {
+  characteristics?: string[];
+  analysis?: { characteristics?: string[] };
+}): string {
+  const analysisTraits = voice.analysis?.characteristics || [];
+  const primaryTraits = voice.characteristics || [];
+  const combined = [...analysisTraits, ...primaryTraits];
+
+  for (const keyword of EMOTIONAL_TONE_KEYWORDS) {
+    const matched = combined.find((item) => item.trim().toLowerCase() === keyword);
+    if (matched) return capitalizeTone(matched);
+  }
+
+  const fallback = primaryTraits[0] || analysisTraits[0] || 'Balanced';
+  return capitalizeTone(fallback);
+}
+

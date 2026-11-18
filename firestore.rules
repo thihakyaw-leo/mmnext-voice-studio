@@ -1,0 +1,230 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default Deny Catch-All)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Helpers ---
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidVoiceId(voiceName) {
+      return voiceName is string && voiceName.size() >= 1 && voiceName.size() <= 64 && voiceName.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function hasWorkspaceAfter(userId) {
+      return existsAfter(/databases/$(database)/documents/users/$(userId)) &&
+        getAfter(/databases/$(database)/documents/users/$(userId)).data.userId == request.auth.uid;
+    }
+
+    function hasWorkspace(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId)) &&
+        get(/databases/$(database)/documents/users/$(userId)).data.userId == request.auth.uid;
+    }
+
+    // --- Validation Blueprints ---
+    function isValidUserWorkspace(data, userId) {
+      return data.keys().hasAll([
+          'userId',
+          'displayName',
+          'language',
+          'isDarkMode',
+          'visualizerVariant',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'userId',
+          'displayName',
+          'language',
+          'isDarkMode',
+          'visualizerVariant',
+          'apiKey',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.userId is string &&
+        isValidId(data.userId) &&
+        data.userId == request.auth.uid &&
+        data.userId == userId &&
+        data.displayName is string &&
+        data.displayName.size() >= 1 &&
+        data.displayName.size() <= 120 &&
+        data.language is string &&
+        data.language in ['en', 'mm'] &&
+        data.isDarkMode is bool &&
+        data.visualizerVariant is string &&
+        data.visualizerVariant in ['wave', 'bars', 'mirror'] &&
+        (!data.keys().hasAll(['apiKey']) || data.apiKey is null || (data.apiKey is string && data.apiKey.size() >= 1 && data.apiKey.size() <= 256)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidFavoriteVoice(data, userId, voiceName) {
+      return data.keys().hasAll(['userId', 'voiceName', 'createdAt']) &&
+        data.keys().hasOnly(['userId', 'voiceName', 'createdAt']) &&
+        data.userId is string &&
+        isValidId(data.userId) &&
+        data.userId == request.auth.uid &&
+        data.userId == userId &&
+        isValidVoiceId(data.voiceName) &&
+        data.voiceName == voiceName &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidBurmeseCharacterOverride(data, userId, voiceName) {
+      return data.keys().hasAll(['userId', 'voiceName', 'mm', 'en', 'updatedAt']) &&
+        data.keys().hasOnly(['userId', 'voiceName', 'mm', 'en', 'updatedAt']) &&
+        data.userId is string &&
+        isValidId(data.userId) &&
+        data.userId == request.auth.uid &&
+        data.userId == userId &&
+        isValidVoiceId(data.voiceName) &&
+        data.voiceName == voiceName &&
+        data.mm is string &&
+        data.mm.size() >= 1 &&
+        data.mm.size() <= 80 &&
+        data.en is string &&
+        data.en.size() >= 1 &&
+        data.en.size() <= 80 &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCastingHistoryItem(data, userId) {
+      return data.keys().hasAll([
+          'userId',
+          'prompt',
+          'voiceNames',
+          'systemInstruction',
+          'sampleText',
+          'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'userId',
+          'prompt',
+          'voiceNames',
+          'systemInstruction',
+          'sampleText',
+          'createdAt'
+        ]) &&
+        data.userId is string &&
+        isValidId(data.userId) &&
+        data.userId == request.auth.uid &&
+        data.userId == userId &&
+        data.prompt is string &&
+        data.prompt.size() >= 1 &&
+        data.prompt.size() <= 1000 &&
+        data.voiceNames is list &&
+        data.voiceNames.size() >= 1 &&
+        data.voiceNames.size() <= 10 &&
+        data.voiceNames[0] is string &&
+        data.voiceNames[0].size() >= 1 &&
+        data.voiceNames[0].size() <= 64 &&
+        data.systemInstruction is string &&
+        data.systemInstruction.size() >= 1 &&
+        data.systemInstruction.size() <= 4000 &&
+        data.sampleText is string &&
+        data.sampleText.size() >= 1 &&
+        data.sampleText.size() <= 1000 &&
+        data.createdAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+      allow create: if isValidId(userId) &&
+        isOwner(userId) &&
+        isValidUserWorkspace(incoming(), userId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(userId) &&
+        isOwner(userId) &&
+        isValidUserWorkspace(incoming(), userId) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          incoming().diff(existing()).affectedKeys().hasOnly(['language', 'updatedAt']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['isDarkMode', 'updatedAt']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['visualizerVariant', 'updatedAt']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['apiKey', 'updatedAt']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['language', 'isDarkMode', 'visualizerVariant', 'displayName', 'apiKey', 'updatedAt'])
+        );
+      allow delete: if isValidId(userId) && isOwner(userId);
+
+      match /favorites/{voiceName} {
+        allow get: if isValidId(userId) && isValidVoiceId(voiceName) && isOwner(userId) && hasWorkspace(userId);
+        allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+        allow create: if isValidId(userId) &&
+          isValidVoiceId(voiceName) &&
+          isOwner(userId) &&
+          isValidFavoriteVoice(incoming(), userId, voiceName) &&
+          incoming().createdAt == request.time &&
+          hasWorkspaceAfter(userId);
+        allow update: if false;
+        allow delete: if isValidId(userId) && isValidVoiceId(voiceName) && isOwner(userId) && hasWorkspace(userId);
+      }
+
+      match /customNames/{voiceName} {
+        allow get: if isValidId(userId) && isValidVoiceId(voiceName) && isOwner(userId) && hasWorkspace(userId);
+        allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+        allow create: if isValidId(userId) &&
+          isValidVoiceId(voiceName) &&
+          isOwner(userId) &&
+          isValidBurmeseCharacterOverride(incoming(), userId, voiceName) &&
+          incoming().updatedAt == request.time &&
+          hasWorkspaceAfter(userId);
+        allow update: if isValidId(userId) &&
+          isValidVoiceId(voiceName) &&
+          isOwner(userId) &&
+          isValidBurmeseCharacterOverride(incoming(), userId, voiceName) &&
+          incoming().userId == existing().userId &&
+          incoming().voiceName == existing().voiceName &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['mm', 'en', 'updatedAt']) &&
+          hasWorkspace(userId);
+        allow delete: if isValidId(userId) && isValidVoiceId(voiceName) && isOwner(userId) && hasWorkspace(userId);
+      }
+
+      match /castingHistory/{castingId} {
+        allow get: if isValidId(userId) && isValidId(castingId) && isOwner(userId) && hasWorkspace(userId);
+        allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+        allow create: if isValidId(userId) &&
+          isValidId(castingId) &&
+          isOwner(userId) &&
+          isValidCastingHistoryItem(incoming(), userId) &&
+          incoming().createdAt == request.time &&
+          hasWorkspaceAfter(userId);
+        allow update: if false;
+        allow delete: if isValidId(userId) && isValidId(castingId) && isOwner(userId) && hasWorkspace(userId);
+      }
+    }
+  }
+}

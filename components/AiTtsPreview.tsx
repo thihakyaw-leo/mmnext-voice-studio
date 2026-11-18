@@ -8,6 +8,7 @@ import { Play, Square, Loader2, Volume2, AlertCircle, ChevronDown, Heart } from 
 import { Voice } from '../types';
 import AudioVisualizer, { VisualizerVariant } from './AudioVisualizer';
 import { useI18n } from '../i18n';
+import { getGeminiApiKeyHeaders, notifyGeminiQuotaUpdated } from '../firebase';
 
 interface AiTtsPreviewProps {
   text: string;
@@ -95,15 +96,17 @@ const AiTtsPreview: React.FC<AiTtsPreviewProps> = ({
     abortControllerRef.current = controller;
 
     try {
+      const authHeaders = await getGeminiApiKeyHeaders();
       const response = await fetch('/api/tts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({
           text,
           voiceName: selectedVoiceName,
         }),
         signal: controller.signal,
       });
+      notifyGeminiQuotaUpdated();
 
       if (!response.ok) {
         const errBody = await response.json().catch(() => ({}));

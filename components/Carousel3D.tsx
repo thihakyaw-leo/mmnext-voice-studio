@@ -6,9 +6,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { Voice } from '../types';
-import { Play, Pause, Activity, ChevronLeft, ChevronRight, Heart, Columns2 } from 'lucide-react';
+import { Play, Pause, Activity, ChevronLeft, ChevronRight, Heart, Columns2, Gauge, Sparkles, Share2 } from 'lucide-react';
 import AudioVisualizer, { VisualizerVariant } from './AudioVisualizer';
 import { useI18n } from '../i18n';
+import { getVoicePitchHzRange, getVoiceEmotionalTone } from '../utils/pitchDetection';
 
 interface Carousel3DProps {
   voices: Voice[];
@@ -20,6 +21,7 @@ interface Carousel3DProps {
   onToggleFavorite: (voiceName: string) => void;
   compareVoices?: string[];
   onToggleCompare?: (voiceName: string) => void;
+  onShare?: (voice: Voice) => void;
   visualizerVariant?: VisualizerVariant;
   analyserNode?: AnalyserNode | null;
   disabled?: boolean;
@@ -35,15 +37,25 @@ const Carousel3D: React.FC<Carousel3DProps> = ({
   onToggleFavorite,
   compareVoices = [],
   onToggleCompare,
+  onShare,
   visualizerVariant = 'wave',
   analyserNode = null,
   disabled = false,
 }) => {
-  const { t, language, translateGender, translatePitch } = useI18n();
+  const { t, language, translateGender, translatePitch, translateTone } = useI18n();
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const activeIndexRef = useRef(activeIndex);
+  const voicesLengthRef = useRef(voices.length);
+  const wheelAccumRef = useRef(0);
+  const wheelLockUntilRef = useRef(0);
+  const wheelResetTimerRef = useRef<number | null>(null);
   const [windowWidth, setWindowWidth] = useState(
     typeof window !== 'undefined' ? window.innerWidth : 1200
   );
+
+  activeIndexRef.current = activeIndex;
+  voicesLengthRef.current = voices.length;
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -59,29 +71,55 @@ const Carousel3D: React.FC<Carousel3DProps> = ({
     if (activeIndex < voices.length - 1) onChange(activeIndex + 1);
   };
 
-  // Keyboard navigation
+  // Mouse wheel & trackpad navigation across Character Cards
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (disabled || voices.length === 0) return;
+    const el = wrapperRef.current;
+    if (!el) return;
 
-      const activeTag = document.activeElement?.tagName;
-      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') return;
+    const handleWheel = (e: WheelEvent) => {
+      if (disabled || voicesLengthRef.current <= 1) return;
 
-      if (e.key === 'ArrowLeft') {
-        handlePrev();
-      } else if (e.key === 'ArrowRight') {
-        handleNext();
-      } else if (e.key === 'Enter' || e.key === ' ') {
-        if (activeTag === 'BUTTON') return;
-        const activeVoice = voices[activeIndex];
-        if (activeVoice) {
-          onPlayToggle(activeVoice.name);
+      const rawDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (rawDelta === 0) return;
+
+      e.preventDefault();
+
+      const scale = e.deltaMode === 1 ? 32 : e.deltaMode === 2 ? 300 : 1;
+      wheelAccumRef.current += rawDelta * scale;
+
+      if (wheelResetTimerRef.current !== null) {
+        window.clearTimeout(wheelResetTimerRef.current);
+      }
+      wheelResetTimerRef.current = window.setTimeout(() => {
+        wheelAccumRef.current = 0;
+        wheelResetTimerRef.current = null;
+      }, 140);
+
+      const now = performance.now();
+      if (now < wheelLockUntilRef.current) return;
+
+      if (Math.abs(wheelAccumRef.current) >= 35) {
+        const direction = wheelAccumRef.current > 0 ? 1 : -1;
+        wheelAccumRef.current = 0;
+        wheelLockUntilRef.current = now + 170;
+
+        const current = activeIndexRef.current;
+        const maxIdx = voicesLengthRef.current - 1;
+        const nextIndex = Math.max(0, Math.min(maxIdx, current + direction));
+        if (nextIndex !== current) {
+          onChange(nextIndex);
         }
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeIndex, voices, disabled, onPlayToggle]);
+
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+      if (wheelResetTimerRef.current !== null) {
+        window.clearTimeout(wheelResetTimerRef.current);
+      }
+    };
+  }, [disabled, onChange]);
 
   const handleDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (disabled) return;
@@ -96,7 +134,7 @@ const Carousel3D: React.FC<Carousel3DProps> = ({
   const visibleRange = 3;
 
   return (
-    <div className="relative w-full h-full flex items-center justify-center">
+    <div ref={wrapperRef} className="relative w-full h-full flex items-center justify-center">
       {/* Navigation Arrows */}
       <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-4 sm:px-12 z-50 pointer-events-none">
         <button
@@ -163,6 +201,7 @@ const Carousel3D: React.FC<Carousel3DProps> = ({
               return (
                 <motion.div
                   key={voice.name}
+                  data-voice-card="true"
                   className={`absolute w-[290px] max-h-[66vh] aspect-[3/5] sm:max-h-none sm:w-[360px] sm:aspect-[3/4] bg-white/95 dark:bg-zinc-800 rounded-3xl border border-zinc-300/70 dark:border-zinc-700 overflow-hidden cursor-pointer ${
                     isActive ? 'shadow-2xl' : 'shadow-lg'
                   }`}
@@ -184,6 +223,17 @@ const Carousel3D: React.FC<Carousel3DProps> = ({
                       onPlayToggle(voice.name);
                     } else {
                       onChange(index);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (disabled) return;
+                    if (e.key === 'Enter' && e.target === e.currentTarget) {
+                      e.preventDefault();
+                      if (isActive) {
+                        onPlayToggle(voice.name);
+                      } else {
+                        onChange(index);
+                      }
                     }
                   }}
                   drag={isActive && !disabled ? 'x' : false}
@@ -243,40 +293,68 @@ const Carousel3D: React.FC<Carousel3DProps> = ({
                         <Heart size={16} className={isFavorite ? 'fill-current' : ''} />
                       </button>
 
-                      {/* Compare Slot Toggle Button */}
-                      {onToggleCompare && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (disabled) return;
-                            if (isActive) {
-                              onToggleCompare(voice.name);
-                            } else {
-                              onChange(index);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
+                      {/* Top-Right Action Cluster: Share & Compare */}
+                      <div className="absolute top-5 right-5 z-30 flex items-center gap-1.5">
+                        {onShare && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
                               e.stopPropagation();
-                            }
-                          }}
-                          tabIndex={isActive && !disabled ? 0 : -1}
-                          aria-label={`${
-                            compareSlot ? t.removeFromCompare : t.addToCompare
-                          }: ${displayName}`}
-                          aria-pressed={!!compareSlot}
-                          title={compareSlot ? t.removeFromCompare : t.addToCompare}
-                          className={`absolute top-5 right-5 z-30 h-9 min-w-[36px] px-2 rounded-full flex items-center justify-center gap-1 backdrop-blur-md border transition-all duration-200 shadow-sm text-xs font-bold ${
-                            compareSlot
-                              ? 'bg-zinc-800 dark:bg-indigo-600 border-zinc-800 dark:border-indigo-500 text-[#FDF7EB] dark:text-white scale-105'
-                              : 'bg-[#FDF7EB]/85 dark:bg-zinc-800/80 border-zinc-300/70 dark:border-zinc-700/70 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:scale-105'
-                          }`}
-                        >
-                          <Columns2 size={14} />
-                          {compareSlot && <span>{compareSlot}</span>}
-                        </button>
-                      )}
+                              if (disabled) return;
+                              if (isActive) {
+                                onShare(voice);
+                              } else {
+                                onChange(index);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.stopPropagation();
+                              }
+                            }}
+                            tabIndex={isActive && !disabled ? 0 : -1}
+                            aria-label={`${t.shareVoice}: ${displayName}`}
+                            title={t.shareVoice}
+                            className="h-9 w-9 rounded-full flex items-center justify-center backdrop-blur-md border transition-all duration-200 shadow-sm bg-[#FDF7EB]/85 dark:bg-zinc-800/80 border-zinc-300/70 dark:border-zinc-700/70 text-zinc-500 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:scale-105"
+                          >
+                            <Share2 size={14} />
+                          </button>
+                        )}
+
+                        {onToggleCompare && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (disabled) return;
+                              if (isActive) {
+                                onToggleCompare(voice.name);
+                              } else {
+                                onChange(index);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.stopPropagation();
+                              }
+                            }}
+                            tabIndex={isActive && !disabled ? 0 : -1}
+                            aria-label={`${
+                              compareSlot ? t.removeFromCompare : t.addToCompare
+                            }: ${displayName}`}
+                            aria-pressed={!!compareSlot}
+                            title={compareSlot ? t.removeFromCompare : t.addToCompare}
+                            className={`h-9 min-w-[36px] px-2 rounded-full flex items-center justify-center gap-1 backdrop-blur-md border transition-all duration-200 shadow-sm text-xs font-bold ${
+                              compareSlot
+                                ? 'bg-zinc-800 dark:bg-indigo-600 border-zinc-800 dark:border-indigo-500 text-[#FDF7EB] dark:text-white scale-105'
+                                : 'bg-[#FDF7EB]/85 dark:bg-zinc-800/80 border-zinc-300/70 dark:border-zinc-700/70 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:scale-105'
+                            }`}
+                          >
+                            <Columns2 size={14} />
+                            {compareSlot && <span>{compareSlot}</span>}
+                          </button>
+                        )}
+                      </div>
 
                       <div
                         className={`absolute inset-0 z-10 transition-opacity duration-500 ${
@@ -319,11 +397,11 @@ const Carousel3D: React.FC<Carousel3DProps> = ({
                       </div>
 
                       {isPlaying && (
-                        <div className="absolute top-8 right-16 w-3 h-3 rounded-full animate-google-colors z-30"></div>
+                        <div className="absolute bottom-4 right-5 w-3 h-3 rounded-full animate-google-colors z-30"></div>
                       )}
                     </div>
 
-                    <div className="h-[44%] sm:h-[42%] p-6 sm:p-7 flex flex-col justify-between bg-white/95 dark:bg-zinc-800 relative z-30">
+                    <div className="h-[46%] sm:h-[44%] p-5 sm:p-6 flex flex-col justify-between bg-white/95 dark:bg-zinc-800 relative z-30">
                       <div>
                         <div className="flex items-start justify-between gap-2 mb-1">
                           <div className="min-w-0">
@@ -340,7 +418,7 @@ const Carousel3D: React.FC<Carousel3DProps> = ({
                             </span>
                           </div>
                         </div>
-                        <div className="flex flex-wrap gap-2 mt-2 mb-3">
+                        <div className="flex flex-wrap gap-2 mt-1.5">
                           <span className="text-sm text-zinc-600 dark:text-zinc-400 font-light">
                             {translatePitch(voice.pitch)} {t.pitchSuffix}
                           </span>
@@ -351,9 +429,29 @@ const Carousel3D: React.FC<Carousel3DProps> = ({
                         </div>
                       </div>
 
-                      <div className="space-y-2.5">
+                      <div className="space-y-2">
+                        {/* Tags: Pitch Range (Hz) & Emotional Tone */}
+                        <div
+                          className="flex flex-wrap items-center gap-1.5"
+                          aria-label={t.voiceTagsLabel}
+                        >
+                          <span
+                            title={t.pitchRangeTagLabel}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50/90 dark:bg-indigo-950/50 border border-indigo-200/70 dark:border-indigo-800/60 text-[11px] font-mono font-medium text-indigo-700 dark:text-indigo-300 tabular-nums whitespace-nowrap"
+                          >
+                            <Gauge size={11} className="shrink-0 opacity-80" />
+                            <span>{getVoicePitchHzRange(voice).label}</span>
+                          </span>
+                          <span
+                            title={t.emotionalToneTagLabel}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-800/50 text-[11px] font-medium text-amber-800 dark:text-amber-300 truncate max-w-full"
+                          >
+                            <Sparkles size={11} className="shrink-0 opacity-80" />
+                            <span className="truncate">{translateTone(getVoiceEmotionalTone(voice))}</span>
+                          </span>
+                        </div>
                         <div className="w-full h-px bg-zinc-200/80 dark:bg-zinc-700"></div>
-                        <p className="text-sm text-zinc-500 dark:text-zinc-500 font-light leading-relaxed line-clamp-3 sm:line-clamp-2">
+                        <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-500 font-light leading-relaxed line-clamp-2">
                           {voice.analysis.characteristics.join(', ')}
                         </p>
                       </div>

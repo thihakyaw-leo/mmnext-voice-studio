@@ -4,47 +4,57 @@
  */
 
 import React from 'react';
-import { Play, Pause, Activity, Heart, Columns2 } from 'lucide-react';
+import { Play, Pause, Activity, Heart, Columns2, Gauge, Sparkles, Share2 } from 'lucide-react';
 import { Voice } from '../types';
 import AudioVisualizer, { VisualizerVariant } from './AudioVisualizer';
 import { useI18n } from '../i18n';
+import { getVoicePitchHzRange, getVoiceEmotionalTone } from '../utils/pitchDetection';
 
 interface VoiceCardProps {
   voice: Voice;
   isPlaying: boolean;
+  isSelected?: boolean;
+  onSelect?: () => void;
   onPlayToggle: (voiceName: string) => void;
   isFavorite: boolean;
   onToggleFavorite: (voiceName: string) => void;
   compareSlot?: 'A' | 'B' | null;
   onToggleCompare?: (voiceName: string) => void;
+  onShare?: (voice: Voice) => void;
   visualizerVariant?: VisualizerVariant;
   analyserNode?: AnalyserNode | null;
 }
 
-const VoiceCard: React.FC<VoiceCardProps> = ({
+const VoiceCard = React.forwardRef<HTMLDivElement, VoiceCardProps>(({
   voice,
   isPlaying,
+  isSelected = false,
+  onSelect,
   onPlayToggle,
   isFavorite,
   onToggleFavorite,
   compareSlot = null,
   onToggleCompare,
+  onShare,
   visualizerVariant = 'wave',
   analyserNode = null,
-}) => {
-  const { t, language, translateGender, translatePitch } = useI18n();
+}, ref) => {
+  const { t, language, translateGender, translatePitch, translateTone } = useI18n();
   const displayName = voice.characterName?.mm || voice.name;
   const subLabel =
     language === 'en' && voice.characterName
       ? `${voice.characterName.en} · ${voice.name}`
       : voice.name;
+  const pitchRange = getVoicePitchHzRange(voice);
+  const emotionalTone = getVoiceEmotionalTone(voice);
 
   const handleClick = () => {
+    onSelect?.();
     onPlayToggle(voice.name);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' && e.target === e.currentTarget) {
       e.preventDefault();
       handleClick();
     }
@@ -52,12 +62,21 @@ const VoiceCard: React.FC<VoiceCardProps> = ({
 
   return (
     <div
-      className={`group relative bg-white/95 dark:bg-zinc-800 border transition-all duration-200 flex flex-col sm:flex-row min-h-[248px] sm:min-h-0 h-auto sm:h-28 cursor-pointer rounded-2xl overflow-hidden hover:border-zinc-400 dark:hover:border-zinc-600 ${
+      ref={ref}
+      data-voice-card="true"
+      className={`group relative bg-white/95 dark:bg-zinc-800 border transition-all duration-200 flex flex-col sm:flex-row min-h-[268px] sm:min-h-[128px] h-auto cursor-pointer rounded-2xl overflow-hidden hover:border-zinc-400 dark:hover:border-zinc-600 focus:outline-none ${
         isPlaying
           ? 'border-zinc-500 dark:border-blue-800 ring-2 ring-zinc-300/80 dark:ring-blue-900/30 shadow-md'
+          : isSelected
+          ? 'border-zinc-700 dark:border-indigo-500 ring-2 ring-zinc-800/20 dark:ring-indigo-500/30 shadow-md'
           : 'border-zinc-300/70 dark:border-zinc-700 shadow-sm hover:shadow-md'
       }`}
       onClick={handleClick}
+      onFocus={(e) => {
+        if (e.target === e.currentTarget) {
+          onSelect?.();
+        }
+      }}
       role="button"
       tabIndex={0}
       onKeyDown={handleKeyDown}
@@ -161,6 +180,25 @@ const VoiceCard: React.FC<VoiceCardProps> = ({
                 {compareSlot && <span>{compareSlot}</span>}
               </button>
             )}
+            {onShare && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onShare(voice);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.stopPropagation();
+                  }
+                }}
+                aria-label={`${t.shareVoice}: ${displayName}`}
+                title={t.shareVoice}
+                className="p-1.5 rounded-full text-zinc-400 dark:text-zinc-600 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-700/60 transition-all"
+              >
+                <Share2 size={13} />
+              </button>
+            )}
             <button
               type="button"
               onClick={(e) => {
@@ -193,9 +231,32 @@ const VoiceCard: React.FC<VoiceCardProps> = ({
         <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed line-clamp-2 sm:line-clamp-1 font-light">
           {voice.analysis.characteristics.join(', ')}
         </p>
+
+        {/* Tags: Pitch Range (Hz) & Emotional Tone */}
+        <div
+          className="mt-2 sm:mt-1.5 pt-1.5 border-t border-zinc-200/70 dark:border-zinc-700/60 flex flex-wrap items-center gap-1.5"
+          aria-label={t.voiceTagsLabel}
+        >
+          <span
+            title={t.pitchRangeTagLabel}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50/90 dark:bg-indigo-950/50 border border-indigo-200/70 dark:border-indigo-800/60 text-[10px] font-mono font-medium text-indigo-700 dark:text-indigo-300 tabular-nums whitespace-nowrap"
+          >
+            <Gauge size={10} className="shrink-0 opacity-80" />
+            <span>{pitchRange.label}</span>
+          </span>
+          <span
+            title={t.emotionalToneTagLabel}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-800/50 text-[10px] font-medium text-amber-800 dark:text-amber-300 truncate max-w-full"
+          >
+            <Sparkles size={10} className="shrink-0 opacity-80" />
+            <span className="truncate">{translateTone(emotionalTone)}</span>
+          </span>
+        </div>
       </div>
     </div>
   );
-};
+});
+
+VoiceCard.displayName = 'VoiceCard';
 
 export default VoiceCard;

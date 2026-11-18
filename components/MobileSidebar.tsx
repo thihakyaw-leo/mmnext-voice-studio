@@ -19,9 +19,14 @@ import {
   Columns2,
   AudioLines,
   BarChart3,
+  LogOut,
+  Loader2,
+  Check,
 } from 'lucide-react';
 import { FilterState } from '../types';
 import { useI18n } from '../i18n';
+import { useFirebase } from './FirebaseProvider';
+import PitchRangeFilter from './PitchRangeFilter';
 
 interface MobileSidebarProps {
   isOpen: boolean;
@@ -65,6 +70,8 @@ const MobileSidebar: React.FC<MobileSidebarProps> = ({
   onOpenPitchChart,
 }) => {
   const { language, setLanguage, t, translateGender, translatePitch } = useI18n();
+  const { user, authBusy, authError, cloudSynced, dailyQuota, signInWithGoogle, signOut, clearAuthError } =
+    useFirebase();
   const sidebarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -258,34 +265,14 @@ const MobileSidebar: React.FC<MobileSidebarProps> = ({
                   </div>
                 </div>
 
-                {/* Pitch Hz Range Filter Slider */}
-                <div className="bg-white/80 dark:bg-zinc-800 border border-zinc-300/80 dark:border-zinc-700 p-3.5 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between text-xs font-medium text-zinc-700 dark:text-zinc-200">
-                    <span>{t.pitchHzFilter}</span>
-                    <span className="font-mono text-indigo-600 dark:text-indigo-400">
-                      70 - {filters.pitchHzRange[1]} Hz
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="70"
-                    max="350"
-                    step="5"
-                    value={filters.pitchHzRange[1]}
-                    onChange={(e) =>
-                      onFilterChange({
-                        ...filters,
-                        pitchHzRange: [filters.pitchHzRange[0], Number(e.target.value)],
-                      })
-                    }
-                    className="w-full accent-indigo-600 dark:accent-indigo-500 cursor-pointer"
-                  />
-                  <div className="flex justify-between text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
-                    <span>70 Hz</span>
-                    <span>210 Hz</span>
-                    <span>350 Hz</span>
-                  </div>
-                </div>
+                {/* Granular Pitch Hz Range Filter */}
+                <PitchRangeFilter
+                  variant="expanded"
+                  value={filters.pitchHzRange}
+                  onChange={(nextRange) =>
+                    onFilterChange({ ...filters, pitchHzRange: nextRange })
+                  }
+                />
 
                 {/* Favorites Only Filter Toggle */}
                 <button
@@ -476,6 +463,117 @@ const MobileSidebar: React.FC<MobileSidebarProps> = ({
                     <span>{isDarkMode ? t.lightMode : t.darkMode}</span>
                   </button>
                 </div>
+              </div>
+
+              {/* Cloud Sync Account Section */}
+              <div className="space-y-2.5 pt-2 border-t border-zinc-300/60 dark:border-zinc-800">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-500">
+                  {t.cloudAccountSection}
+                </p>
+
+                {user ? (
+                  <div className="p-3 rounded-2xl bg-white/85 dark:bg-zinc-800/80 border border-zinc-300/80 dark:border-zinc-700 space-y-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg overflow-hidden bg-zinc-800 dark:bg-indigo-600 text-[#FDF7EB] dark:text-white flex items-center justify-center text-xs font-bold shrink-0">
+                        {user.photoURL ? (
+                          <img
+                            src={user.photoURL}
+                            alt={user.displayName || 'Account'}
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          (user.displayName || user.email || 'U').charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-zinc-800 dark:text-white truncate">
+                          {user.displayName || 'User'}
+                        </p>
+                        <p className="text-[11px] text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
+                          {cloudSynced ? <Check size={11} /> : <Loader2 size={11} className="animate-spin" />}
+                          <span>{cloudSynced ? t.cloudSynced : t.syncingCloud}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    {dailyQuota && (
+                      <div
+                        title={t.dailyQuotaTooltip(
+                          dailyQuota.userRemaining,
+                          dailyQuota.userLimit,
+                          dailyQuota.globalRemaining,
+                          dailyQuota.globalLimit
+                        )}
+                        className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-[11px] font-medium ${
+                          dailyQuota.exhausted
+                            ? 'bg-rose-50/90 dark:bg-rose-950/40 border-rose-200/80 dark:border-rose-800/60 text-rose-700 dark:text-rose-300'
+                            : 'bg-[#FDF7EB]/70 dark:bg-zinc-900/60 border-zinc-300/70 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300'
+                        }`}
+                      >
+                        <span className="truncate">{t.dailyFreeLimitLabel}</span>
+                        <span className="font-mono tabular-nums font-bold shrink-0">
+                          {dailyQuota.userRemaining}/{dailyQuota.userLimit}
+                        </span>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      disabled={authBusy}
+                      onClick={() => void signOut()}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-zinc-200/70 dark:bg-zinc-900 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-zinc-700 dark:text-zinc-300 hover:text-rose-600 dark:hover:text-rose-400 text-xs font-medium transition-colors"
+                    >
+                      <LogOut size={13} />
+                      <span>{t.signOut}</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      disabled={authBusy}
+                      onClick={() => void signInWithGoogle()}
+                      className="w-full flex items-center justify-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-zinc-900 dark:bg-white hover:bg-zinc-800 dark:hover:bg-zinc-100 text-white dark:text-zinc-900 transition-colors text-xs font-semibold shadow-sm disabled:opacity-60"
+                    >
+                      {authBusy ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                          <path
+                            fill="#4285F4"
+                            d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"
+                          />
+                          <path
+                            fill="#34A853"
+                            d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24Z"
+                          />
+                          <path
+                            fill="#FBBC05"
+                            d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14Z"
+                          />
+                          <path
+                            fill="#EA4335"
+                            d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96Z"
+                          />
+                        </svg>
+                      )}
+                      <span>{authBusy ? t.signingIn : t.continueWithGoogle}</span>
+                    </button>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-snug px-1">
+                      {t.cloudSyncHint}
+                    </p>
+                  </div>
+                )}
+
+                {authError && (
+                  <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-[11px] text-rose-700 dark:text-rose-300 flex items-center justify-between gap-2">
+                    <span className="truncate">{authError}</span>
+                    <button type="button" onClick={clearAuthError} aria-label={t.close}>
+                      <X size={12} />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </motion.aside>

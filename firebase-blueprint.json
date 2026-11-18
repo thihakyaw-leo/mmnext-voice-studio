@@ -1,0 +1,200 @@
+{
+  "entities": {
+    "UserWorkspace": {
+      "title": "UserWorkspace",
+      "description": "User workspace preferences and identity document that gates all user subcollections.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the workspace owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name shown in the signed-in workspace menu.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "language": {
+          "type": "string",
+          "description": "Active UI language code.",
+          "enum": ["en", "mm"],
+          "minLength": 2,
+          "maxLength": 2
+        },
+        "isDarkMode": {
+          "type": "boolean",
+          "description": "Whether dark mode is enabled."
+        },
+        "visualizerVariant": {
+          "type": "string",
+          "description": "Selected audio visualizer style.",
+          "enum": ["wave", "bars", "mirror"],
+          "minLength": 4,
+          "maxLength": 6
+        },
+        "apiKey": {
+          "type": "string",
+          "description": "Optional personal Gemini API key entered by the user.",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the workspace document was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the workspace document was last updated."
+        }
+      },
+      "required": [
+        "userId",
+        "displayName",
+        "language",
+        "isDarkMode",
+        "visualizerVariant",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "FavoriteVoice": {
+      "title": "FavoriteVoice",
+      "description": "A favorited voice saved by a signed-in user.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "voiceName": {
+          "type": "string",
+          "description": "Built-in voice identifier (e.g. Zephyr, Puck).",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the voice was favorited."
+        }
+      },
+      "required": ["userId", "voiceName", "createdAt"]
+    },
+    "BurmeseCharacterOverride": {
+      "title": "BurmeseCharacterOverride",
+      "description": "User-customized or randomized Burmese character name for a specific voice.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "voiceName": {
+          "type": "string",
+          "description": "Built-in voice identifier.",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "mm": {
+          "type": "string",
+          "description": "Burmese character display name.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "en": {
+          "type": "string",
+          "description": "Romanized English character display name.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when this override was updated."
+        }
+      },
+      "required": ["userId", "voiceName", "mm", "en", "updatedAt"]
+    },
+    "CastingHistoryItem": {
+      "title": "CastingHistoryItem",
+      "description": "Saved AI Casting Director recommendation session.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "prompt": {
+          "type": "string",
+          "description": "Character description prompt submitted to AI Casting Director.",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "voiceNames": {
+          "type": "array",
+          "description": "Recommended voice identifiers (bounded to at most 10 items)."
+        },
+        "systemInstruction": {
+          "type": "string",
+          "description": "Generated voice persona system prompt.",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "sampleText": {
+          "type": "string",
+          "description": "Generated preview script text.",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when this casting record was saved."
+        }
+      },
+      "required": [
+        "userId",
+        "prompt",
+        "voiceNames",
+        "systemInstruction",
+        "sampleText",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserWorkspace" },
+      "description": "Owner-only user workspace settings and parent document for user subcollections."
+    },
+    "/users/{userId}/favorites/{voiceName}": {
+      "schema": { "$ref": "#/entities/FavoriteVoice" },
+      "description": "Favorited voices belonging to the user."
+    },
+    "/users/{userId}/customNames/{voiceName}": {
+      "schema": { "$ref": "#/entities/BurmeseCharacterOverride" },
+      "description": "Custom Burmese character name mappings for the user."
+    },
+    "/users/{userId}/castingHistory/{castingId}": {
+      "schema": { "$ref": "#/entities/CastingHistoryItem" },
+      "description": "Saved AI Casting Director history items for the user."
+    }
+  }
+}

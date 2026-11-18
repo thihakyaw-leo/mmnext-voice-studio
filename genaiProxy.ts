@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { getGeminiApiKeyHeaders, notifyGeminiQuotaUpdated } from "./firebase";
+
 export const Type = {
   TYPE_UNSPECIFIED: "TYPE_UNSPECIFIED",
   STRING: "STRING",
@@ -93,11 +95,17 @@ function __getAppletClientId(): string {
 }
 
 async function postJson(url: string, body: any) {
+  const authHeaders = await getGeminiApiKeyHeaders();
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-client-id": __getAppletClientId() },
+    headers: {
+      "Content-Type": "application/json",
+      "x-client-id": __getAppletClientId(),
+      ...authHeaders,
+    },
     body: JSON.stringify(body),
   });
+  notifyGeminiQuotaUpdated();
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(data.error || `Request failed with status ${response.status}`);
@@ -106,11 +114,17 @@ async function postJson(url: string, body: any) {
 }
 
 async function createNdjsonStream(url: string, body: any) {
+  const authHeaders = await getGeminiApiKeyHeaders();
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-client-id": __getAppletClientId() },
+    headers: {
+      "Content-Type": "application/json",
+      "x-client-id": __getAppletClientId(),
+      ...authHeaders,
+    },
     body: JSON.stringify(body),
   });
+  notifyGeminiQuotaUpdated();
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     throw new Error(data.error || `Request failed with status ${response.status}`);
