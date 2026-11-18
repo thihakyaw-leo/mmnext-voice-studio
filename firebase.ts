@@ -29,6 +29,7 @@ import {
   Timestamp,
   Unsubscribe,
 } from 'firebase/firestore';
+import { getAnalytics } from 'firebase/analytics';
 import firebaseConfig from './firebase-applet-config.json';
 import { AiRecommendation } from './types';
 import type { BurmeseCharacterName } from './burmeseNames';
@@ -49,6 +50,7 @@ export const MAX_CASTING_VOICE_NAMES = 10;
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
+export const analytics = getAnalytics(app);
 const googleProvider = new GoogleAuthProvider();
 
 export enum OperationType {
