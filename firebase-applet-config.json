@@ -6,7 +6,7 @@
   "firestoreDatabaseId": "ai-studio-mmnextvoicestudi-f3d949fe-55a2-404e-ba17-157f2ee9f729",
   "storageBucket": "mmnext-saas.firebasestorage.app",
   "messagingSenderId": "372516832780",
-  "measurementId": "",
+  "measurementId": "G-XXXXXXXXXX",
   "oAuthClientId": "372516832780-pk06ubm6pcfp11gt48d4f5beh4d9fk68.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }
