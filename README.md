@@ -1,192 +1,113 @@
-﻿﻿# mmnext-voice-studio
+# MMNext AI Voice Studio
 
-Voice library web application — Google Sign-In, AI voice casting via Gemini, real-time audio visualization, Burmese character name mapping, and Firebase-powered cloud sync for favorites and casting history.
+An enterprise-grade Burmese voice library, text-to-speech studio, and AI voice casting application powered by Google Gemini, Firebase Auth/Firestore, and React 19.
 
-## Features (ချက်)
+## Key Features
 
-- **Google Sign-In** auth မှိုလွင်ကွေးရန်
-- Voice selection နှင့် customization
-- Real-time audio visualization (wave, bars, mirror variant)
-- Burmese character name mapping (မြန်မာဘာအမဝ် Mapping)
-- Casting history နှင့် favorites
-- Dark mode support
-- English / Myanmar i18n language switching
-- Pitch detection
-- Firestore security rules (owner isolation, email verification gate)
+- **Route-Based Studio Architecture**:
+  - `/login`: Secure Google sign-in workspace with scrollable layout and Light/Dark theme toggle.
+  - `/:userid/home`: Authenticated user studio workspace preserving deep links (`?voice=...`, `?compare=...`).
+  - `/privacy-policy`: Dedicated data privacy and security policy path.
+  - `/terms`: Workspace terms of service and usage guidelines path.
+  - `/storage`: High-fidelity audio storage, waveform capabilities, and workspace partitions path.
+- **Theme & Appearance**: Full support for Light and Dark modes with automatic persistence in `localStorage` and Firestore user preferences.
+- **Gemini AI Integration**: AI Casting Director, custom voice persona generation, and live Burmese text-to-speech (TTS) synthesis.
+- **Real-Time Audio & Visualization**: Interactive 3D voice carousel, grid view, side-by-side comparison, and multiple visualizer variants (Wave, Bars, Mirror).
+- **Firebase Cloud Sync**: Secure synchronization of favorites, custom character names, transcripts, and preferences with strict owner isolation rules.
+- **Google Drive Integration**: Import/export scripts and backup workflows directly to Google Drive.
 
-## Tech Stack (ဘာသာပြန်)
+## Tech Stack
 
 | Layer | Technology |
 |-------|------------|
 | Frontend | React 19 + Vite + TypeScript |
-| Backend | Express (server.ts) |
-| Database/Auth | Firebase Auth & Firestore |
-| AI | Gemini AI (via genai proxy) |
+| Backend | Express (`server.ts` with Vite middleware & API proxy) |
+| Database & Auth | Firebase Auth & Firestore (`ai-studio-mmnextvoicestudi-f3d949fe-55a2-404e-ba17-157f2ee9f729`) |
+| AI | Google GenAI SDK (`@google/genai`) |
 | Styling | Tailwind CSS + Lucide React + Framer Motion |
-| Audio | Web Audio API (pitch detection, visualizer) |
-| Charts | Recharts |
-| Build | esbuild, tsx |
+| Audio | Web Audio API (real-time pitch detection & frequency spectrum) |
 
 ## Project Structure
 
+```text
 mmnext-voice-studio/
 ├── README.md
 ├── package.json
 ├── tsconfig.json
 ├── vite.config.ts
-├── eslint.config.js
-├── server.ts                 # Express backend + AI proxy routes
-├── firebase.ts               # Firebase init, Auth, Firestore helpers
-├── firebase-applet-config.json
-├── firestore.rules           # Firestore security rules
-├── firestore.rules.test.ts   # Security rules tests
-├── genaiProxy.ts             # Gemini AI proxy client
+├── server.ts                 # Express backend & AI proxy routes
+├── firebase.ts               # Firebase SDK, Auth & Firestore sync helpers
+├── firebase-applet-config.json # Firebase project configuration
+├── firestore.rules           # Firestore security rules (Eight Pillars)
+├── firestore.rules.test.ts   # Security rules unit tests
 ├── types.ts                  # TypeScript interfaces
-├── burmeseNames.ts           # Burmese character name mapping logic
+├── burmeseNames.ts           # Burmese character name mapping
 ├── burmeseSamples.ts         # Burmese script samples
-├── constants.ts              # Limits and ID patterns
-├── i18n.tsx                  # English/Myanmar i18n
-├── index.css                 # Global styles (dark mode support)
-├── index.html
-├── index.tsx                 # Entry point
-├── App.tsx                   # Root app component
-├── declarations.d.ts
-├── public/
-│   └── favicon.ico
-├── utils/
-│   └── pitchDetection.ts     # Pitch detection utility
-└── components/
-    ├── AiResultCard.tsx
-    ├── AiTtsPreview.tsx
-    ├── ApiKeyModal.tsx
-    ├── AudioVisualizer.tsx
-    ├── AudioVisualizerBar.tsx
-    ├── Carousel3D.tsx
-    ├── CompareView.tsx
-    ├── ControlBar.tsx
-    ├── FavoritesDrawer.tsx
-    ├── FilterBar.tsx
-    ├── FirebaseErrorBoundary.tsx
-    ├── FirebaseProvider.tsx
-    ├── GridView.tsx
-    ├── LoginModal.tsx
-    ├── MobileSidebar.tsx
-    ├── PitchDistributionModal.tsx
-    ├── PitchFrequencyPanel.tsx
-    ├── PitchRangeFilter.tsx
-    ├── ShareVoiceModal.tsx
-    ├── TtsScriptBar.tsx
-    ├── VoiceCard.tsx
-    └── VoiceFinder.tsx
-
-## Installation
-
-### 1. Repository ကိုကို clone လုပ်ပါ
-
-```bash
-git clone https://github.com/thihakyaw-leo/mmnext-voice-studio.git
-cd mmnext-voice-studio
+├── constants.ts              # Voice data catalog
+├── i18n.tsx                  # English / Myanmar bilingual support
+├── index.css                 # Global styles, dark mode & cinematic themes
+├── index.tsx                 # React entry point
+├── App.tsx                   # Root component & routing controller
+├── components/
+│   ├── AiResultCard.tsx
+│   ├── AiTtsPreview.tsx
+│   ├── ApiKeyModal.tsx
+│   ├── AudioVisualizer.tsx
+│   ├── Carousel3D.tsx
+│   ├── CompareView.tsx
+│   ├── FavoritesDrawer.tsx
+│   ├── FilterBar.tsx
+│   ├── GoogleDriveModal.tsx
+│   ├── LegalPages.tsx        # /privacy-policy, /terms, /storage pages
+│   ├── LoginModal.tsx        # Secure sign-in shell
+│   ├── MobileSidebar.tsx
+│   ├── PitchDistributionModal.tsx
+│   ├── PitchFrequencyPanel.tsx
+│   ├── ShareVoiceModal.tsx
+│   └── VoiceCard.tsx
+└── utils/
+    ├── googleDrive.ts        # Google Drive API helpers
+    ├── googlePicker.ts       # Google Drive Picker integration
+    └── pitchDetection.ts     # Voice pitch detection utility
 ```
 
-### 2. Dependencies install လုပ်ပါ
+## Getting Started
+
+### 1. Install Dependencies
 
 ```bash
-pnpm install
+npm install
 ```
 
-### 3. Firebase Configuration
+### 2. Configure Environment
 
-`firebase-applet-config.json` ဖိုင်မှာ Firebase project config တွေကို စက်ထက်ပ/config/ ချိန်ပေးချೆင်:
-
-- apiKey
-- authDomain
-- projectId
-- firestoreDatabaseId
-- storageBucket
-- messagingSenderId
-- appId
-- measurementId
-
-.env example ဖိုင်ကိုပြီး .env file ရေးနိုင်ပါ environment variable ချိန်ပေးချೆင်:
+Create a `.env` file based on `.env.example`:
 
 ```bash
 cp .env.example .env
 ```
 
-.env ဖိုင်နဲ့ MY_GEMINI_API_KEY replace လုပ်ပါ:
+Set your Gemini API key:
 
 ```env
 GEMINI_API_KEY="your-gemini-api-key-here"
 ```
 
-### 4. Development Server
+### 3. Run Development Server
 
 ```bash
-pnpm dev
+npm run dev
 ```
 
-Server runs on http://localhost:5173
+The application runs at `http://localhost:3000`.
 
-### 5. Production Build
+### 4. Production Build
 
 ```bash
-pnpm build
+npm run build
+npm start
 ```
-
-Build creates dist folder and server.cjs:
-
-```bash
-pnpm start
-```
-
-## Firebase Security Rules
-
-Firestore Security Rules (မြန်မာဘာအချက်):
-
-firestore.rules ဖိုင်မှာ Firestore security rules v2 ရေးထားပါ:
-
-- **Owner isolation** — /users/{userId} owner-only read/write access
-- **Email verification gate** — verified email users only require auth
-- **Path/payload sync** — favorites/customNames voiceName field must match path parameter
-- **Immutable fields** — userId, createdAt cannot be updated
-- **Timestamp enforcement** — createdAt, updatedAt must be set to request.time
-- **Ghost field prevention** — keys().hasAll() / keys().hasOnly() reject unexpected fields
-- **Size limits** — ID, voice name, prompt, system instruction, sample text have limits
-
-Testing:
-
-Firestore rules tests are in firestore.rules.test.ts
-
-## Available Scripts
-
-| Script | Command | Description |
-|--------|---------|-------------|
-| dev | pnpm dev | Start local development server |
-| build | pnpm build | Vite build + esbuild server bundle |
-| start | pnpm start | Start production server |
-| preview | pnpm preview | Preview production build |
-| lint | pnpm lint | TypeScript type checking (tsc --noEmit) |
-
-## Environment Variables
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| GEMINI_API_KEY | Gemini AI API key | Yes |
-
-## Contributing
-
-Contributing (မြန်မာဘာအချက်):
-
-1. Fork the repository
-2. Create a feature branch (git checkout -b feature/your-feature)
-3. Commit your changes (git commit -m 'Add some feature')
-4. Push to the branch (git push origin feature/your-feature)
-5. Open a Pull Request
 
 ## License
 
-MIT License — see LICENSE file for details.
-
----
-
-**mmnext-voice-studio** — Voice library web application with Firebase + React + TypeScript.
+Apache-2.0 License — see LICENSE file for details.
