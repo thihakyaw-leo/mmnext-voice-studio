@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Leo Voice</title>
+    <meta name="description" content="Find the perfect voice for your Text to Speech needs. Simply describe the voice you are looking for and the AI will do the casting for you." />
+    <meta property="og:title" content="Leo Voice" />
+    <meta property="og:description" content="Find the perfect voice for your Text to Speech needs. Simply describe the voice you are looking for and the AI will do the casting for you." />
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              emeraldDeep: {
+                950: '#020E0B',
+                900: '#041813',
+                850: '#06231B',
+                800: '#092E24',
+                700: '#0D3A2E'
+              },
+              forest: {
+                900: '#0B3328',
+                800: '#114637',
+                700: '#145240',
+                600: '#195E4A'
+              },
+              jade: {
+                700: '#1D5E4A',
+                600: '#236D56',
+                500: '#2E8267',
+                400: '#3D9476',
+                300: '#5FA88E'
+              },
+              antiqueGold: {
+                700: '#7D602D',
+                600: '#9C7A3C',
+                500: '#B49049',
+                400: '#C6A259'
+              },
+              champagne: {
+                400: '#D4B675',
+                300: '#DFC589',
+                200: '#EAD7A4',
+                100: '#F2E4BE'
+              },
+              ivory: {
+                50: '#FAF6EC',
+                100: '#F4EDE0',
+                200: '#EBE2CE',
+                300: '#DFD3BA'
+              },
+              zinc: {
+                50: '#FAF6EC',
+                100: '#F4EDE0',
+                200: '#EBE2CE',
+                300: '#D9CEB8',
+                400: '#8DA399',
+                500: '#5B7469',
+                600: '#2F4D42',
+                700: '#163D31',
+                800: '#0D3126',
+                900: '#07221B',
+                950: '#041813'
+              }
+            },
+            fontFamily: {
+              sans: ['DM Sans', 'Noto Sans Myanmar', 'Inter', 'sans-serif'],
+              serif: ['Playfair Display', 'Noto Sans Myanmar', 'serif'],
+              display: ['Playfair Display', 'DM Sans', 'Noto Sans Myanmar', 'serif']
+            },
+            animation: {
+              'fade-in': 'fadeIn 0.5s ease-out',
+              'slide-up': 'slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
+              'slide-down': 'slideDown 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
+              'google-colors': 'champagneShimmer 3.2s ease-in-out infinite'
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' }
+              },
+              slideUp: {
+                '0%': { transform: 'translateY(100%)', opacity: '0' },
+                '100%': { transform: 'translateY(0)', opacity: '1' }
+              },
+              slideDown: {
+                '0%': { transform: 'translateY(-100%)', opacity: '0' },
+                '100%': { transform: 'translateY(0)', opacity: '1' }
+              },
+              champagneShimmer: {
+                '0%, 100%': { backgroundColor: '#C6A259', opacity: '0.85' },
+                '50%': { backgroundColor: '#EAD7A4', opacity: '1' }
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=DM+Sans:opsz,wght@9..40,300;400;500;600;700&family=Noto+Sans+Myanmar:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --bg-canvas: #FAF6EC;
+        --bg-surface: #F4EDE0;
+        --ink-primary: #072920;
+        --ink-muted: #3D5F53;
+        --accent-gold: #B49049;
+        --accent-champagne: #DFC589;
+        --accent-jade: #236D56;
+      }
+      .dark {
+        --bg-canvas: #041813;
+        --bg-surface: #092E24;
+        --ink-primary: #FAF6EC;
+        --ink-muted: #9EB5AC;
+        --accent-gold: #C6A259;
+        --accent-champagne: #EAD7A4;
+        --accent-jade: #2E8267;
+      }
+      body {
+        font-family: "DM Sans", "Noto Sans Myanmar", sans-serif;
+        background-color: #FAF6EC;
+        color: #072920;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        overflow: hidden;
+      }
+      .dark body {
+        background-color: #041813;
+        color: #FAF6EC;
+      }
+      ::-webkit-scrollbar {
+        width: 0px;
+        background: transparent;
+      }
+      .glass-panel {
+        background: rgba(250, 246, 236, 0.86);
+        backdrop-filter: blur(22px);
+        -webkit-backdrop-filter: blur(22px);
+      }
+      .dark .glass-panel {
+        background: rgba(7, 34, 27, 0.84);
+      }
+
+      /* Cinematic Volumetric Lighting, Golden Haze & Subtle Vignette */
+      .cinematic-field {
+        background:
+          radial-gradient(ellipse 80% 60% at 50% 0%, rgba(198, 162, 89, 0.11) 0%, transparent 65%),
+          radial-gradient(ellipse 65% 55% at 88% 12%, rgba(223, 197, 137, 0.10) 0%, transparent 60%),
+          radial-gradient(ellipse 70% 60% at 15% 88%, rgba(35, 109, 86, 0.10) 0%, transparent 65%),
+          linear-gradient(180deg, #FAF6EC 0%, #F4EDE0 100%);
+      }
+      .dark .cinematic-field {
+        background:
+          radial-gradient(ellipse 75% 55% at 50% -5%, rgba(223, 197, 137, 0.11) 0%, rgba(180, 144, 73, 0.04) 40%, transparent 72%),
+          radial-gradient(ellipse 60% 50% at 85% 15%, rgba(234, 215, 164, 0.08) 0%, transparent 62%),
+          radial-gradient(ellipse 70% 60% at 18% 75%, rgba(35, 109, 86, 0.28) 0%, rgba(17, 70, 55, 0.12) 48%, transparent 75%),
+          radial-gradient(circle at 50% 48%, #0B3227 0%, #062119 56%, #03130F 100%);
+      }
+
+      .volumetric-beam {
+        background: linear-gradient(
+          132deg,
+          transparent 15%,
+          rgba(223, 197, 137, 0.07) 36%,
+          rgba(234, 215, 164, 0.03) 48%,
+          transparent 68%
+        );
+        filter: blur(26px);
+      }
+      .dark .volumetric-beam {
+        background: linear-gradient(
+          132deg,
+          transparent 18%,
+          rgba(223, 197, 137, 0.09) 35%,
+          rgba(198, 162, 89, 0.04) 48%,
+          transparent 70%
+        );
+      }
+
+      .cinematic-vignette {
+        background: radial-gradient(
+          ellipse 82% 78% at 50% 50%,
+          transparent 54%,
+          rgba(7, 41, 32, 0.05) 82%,
+          rgba(7, 41, 32, 0.12) 100%
+        );
+      }
+      .dark .cinematic-vignette {
+        background: radial-gradient(
+          ellipse 80% 76% at 50% 48%,
+          transparent 50%,
+          rgba(2, 14, 11, 0.42) 82%,
+          rgba(1, 9, 7, 0.72) 100%
+        );
+      }
+
+      .luminous-hairline {
+        box-shadow:
+          inset 0 1px 0 rgba(255, 252, 244, 0.75),
+          0 16px 40px -18px rgba(7, 41, 32, 0.12);
+      }
+      .dark .luminous-hairline {
+        box-shadow:
+          inset 0 1px 0 rgba(234, 215, 164, 0.18),
+          0 24px 55px -18px rgba(1, 10, 8, 0.72),
+          0 0 36px -14px rgba(198, 162, 89, 0.12);
+      }
+
+      .luxury-active-bloom {
+        box-shadow:
+          inset 0 1px 0 rgba(255, 250, 236, 0.85),
+          0 22px 48px -16px rgba(11, 51, 40, 0.18),
+          0 0 28px -10px rgba(180, 144, 73, 0.24);
+      }
+      .dark .luxury-active-bloom {
+        box-shadow:
+          inset 0 1px 0 rgba(242, 228, 190, 0.28),
+          0 28px 64px -16px rgba(1, 9, 7, 0.82),
+          0 0 44px -12px rgba(223, 197, 137, 0.22);
+      }
+
+      /* Custom scrollbar for content areas */
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 5px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background-color: rgba(180, 144, 73, 0.35);
+        border-radius: 20px;
+      }
+      .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+        background-color: rgba(198, 162, 89, 0.28);
+      }
+    </style>
+</head>
+  <body>
+    <div id="root"></div>
+      <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
