@@ -80,7 +80,7 @@ service cloud.firestore {
         data.isDarkMode is bool &&
         data.visualizerVariant is string &&
         data.visualizerVariant in ['wave', 'bars', 'mirror'] &&
-        (!data.keys().hasAll(['apiKey']) || data.apiKey == null || (data.apiKey is string && data.apiKey.size() >= 1 && data.apiKey.size() <= 256)) &&
+        (!data.keys().hasAll(['apiKey']) || data.apiKey == null || (data.apiKey is string && data.apiKey.size() >= 1 && data.apiKey.size() <= 512)) &&
         data.createdAt is timestamp &&
         data.updatedAt is timestamp;
     }
@@ -112,6 +112,21 @@ service cloud.firestore {
         data.en is string &&
         data.en.size() >= 1 &&
         data.en.size() <= 80 &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCharacterTranscript(data, userId, voiceName) {
+      return data.keys().hasAll(['userId', 'voiceName', 'transcript', 'updatedAt']) &&
+        data.keys().hasOnly(['userId', 'voiceName', 'transcript', 'updatedAt']) &&
+        data.userId is string &&
+        isValidId(data.userId) &&
+        data.userId == request.auth.uid &&
+        data.userId == userId &&
+        isValidVoiceId(data.voiceName) &&
+        data.voiceName == voiceName &&
+        data.transcript is string &&
+        data.transcript.size() >= 1 &&
+        data.transcript.size() <= 2500 &&
         data.updatedAt is timestamp;
     }
 
@@ -209,6 +224,27 @@ service cloud.firestore {
           incoming().voiceName == existing().voiceName &&
           incoming().updatedAt == request.time &&
           incoming().diff(existing()).affectedKeys().hasOnly(['mm', 'en', 'updatedAt']) &&
+          hasWorkspace(userId);
+        allow delete: if isValidId(userId) && isValidVoiceId(voiceName) && isOwner(userId) && hasWorkspace(userId);
+      }
+
+      match /characterTranscripts/{voiceName} {
+        allow get: if isValidId(userId) && isValidVoiceId(voiceName) && isOwner(userId) && hasWorkspace(userId);
+        allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+        allow create: if isValidId(userId) &&
+          isValidVoiceId(voiceName) &&
+          isOwner(userId) &&
+          isValidCharacterTranscript(incoming(), userId, voiceName) &&
+          incoming().updatedAt == request.time &&
+          hasWorkspaceAfter(userId);
+        allow update: if isValidId(userId) &&
+          isValidVoiceId(voiceName) &&
+          isOwner(userId) &&
+          isValidCharacterTranscript(incoming(), userId, voiceName) &&
+          incoming().userId == existing().userId &&
+          incoming().voiceName == existing().voiceName &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['transcript', 'updatedAt']) &&
           hasWorkspace(userId);
         allow delete: if isValidId(userId) && isValidVoiceId(voiceName) && isOwner(userId) && hasWorkspace(userId);
       }

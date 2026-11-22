@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence, PanInfo } from 'framer-motion';
+import { motion, AnimatePresence, PanInfo, useReducedMotion } from 'framer-motion';
 import { Voice } from '../types';
 import { Play, Pause, Activity, ChevronLeft, ChevronRight, Heart, Columns2, Gauge, Sparkles, Share2, Pencil, FileText } from 'lucide-react';
 import AudioVisualizer, { VisualizerVariant } from './AudioVisualizer';
@@ -26,6 +26,7 @@ interface Carousel3DProps {
   visualizerVariant?: VisualizerVariant;
   analyserNode?: AnalyserNode | null;
   disabled?: boolean;
+  filterKey?: string;
 }
 
 const Carousel3D: React.FC<Carousel3DProps> = ({
@@ -43,7 +44,21 @@ const Carousel3D: React.FC<Carousel3DProps> = ({
   visualizerVariant = 'wave',
   analyserNode = null,
   disabled = false,
+  filterKey = 'default',
 }) => {
+  const shouldReduceMotion = useReducedMotion();
+  const prevFilterKeyRef = useRef(filterKey);
+  const prevActiveIndexRef = useRef(activeIndex);
+  const applyStaggerRef = useRef(true);
+
+  if (prevFilterKeyRef.current !== filterKey) {
+    prevFilterKeyRef.current = filterKey;
+    prevActiveIndexRef.current = activeIndex;
+    applyStaggerRef.current = true;
+  } else if (prevActiveIndexRef.current !== activeIndex) {
+    prevActiveIndexRef.current = activeIndex;
+    applyStaggerRef.current = false;
+  }
   const { t, language, translateGender, translatePitch, translateTone } = useI18n();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -145,7 +160,7 @@ const Carousel3D: React.FC<Carousel3DProps> = ({
         <button
           onClick={handlePrev}
           disabled={activeIndex === 0 || disabled}
-          className={`p-3.5 sm:p-4 rounded-full bg-[#FAF6EC]/90 dark:bg-[#06231B]/88 backdrop-blur-md shadow-lg border luminous-hairline border-[#D9CEB8] dark:border-[#C6A259]/30 text-[#06231B] dark:text-[#DFC589] transition-all hover:scale-105 hover:border-[#B49049] dark:hover:border-[#DFC589]/60 active:scale-95 pointer-events-auto ${
+          className={`p-3.5 sm:p-4 rounded-full bg-[#FAF6EC]/90 dark:bg-[#06231B]/90 backdrop-blur-md shadow-lg border luminous-hairline border-[#D9CEB8] dark:border-[#C6A259]/30 text-[#06231B] dark:text-[#DFC589] transition-all hover:scale-105 hover:border-[#B49049] dark:hover:border-[#DFC589]/60 active:scale-95 pointer-events-auto ${
             activeIndex === 0 ? 'opacity-0 cursor-default' : 'opacity-100'
           } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
           aria-label={t.previousVoice}
@@ -155,7 +170,7 @@ const Carousel3D: React.FC<Carousel3DProps> = ({
         <button
           onClick={handleNext}
           disabled={activeIndex >= voices.length - 1 || disabled}
-          className={`p-3.5 sm:p-4 rounded-full bg-[#FAF6EC]/90 dark:bg-[#06231B]/88 backdrop-blur-md shadow-lg border luminous-hairline border-[#D9CEB8] dark:border-[#C6A259]/30 text-[#06231B] dark:text-[#DFC589] transition-all hover:scale-105 hover:border-[#B49049] dark:hover:border-[#DFC589]/60 active:scale-95 pointer-events-auto ${
+          className={`p-3.5 sm:p-4 rounded-full bg-[#FAF6EC]/90 dark:bg-[#06231B]/90 backdrop-blur-md shadow-lg border luminous-hairline border-[#D9CEB8] dark:border-[#C6A259]/30 text-[#06231B] dark:text-[#DFC589] transition-all hover:scale-105 hover:border-[#B49049] dark:hover:border-[#DFC589]/60 active:scale-95 pointer-events-auto ${
             activeIndex >= voices.length - 1
               ? 'opacity-0 cursor-default'
               : 'opacity-100'
@@ -171,8 +186,11 @@ const Carousel3D: React.FC<Carousel3DProps> = ({
         className="relative w-full h-[76vh] sm:h-[70vh] flex items-center justify-center"
         style={{ perspective: '1200px' }}
       >
-        <div className="relative w-full h-full flex items-center justify-center transform-style-3d">
-          <AnimatePresence initial={false}>
+        <div
+          key={filterKey}
+          className="relative w-full h-full flex items-center justify-center transform-style-3d"
+        >
+          <AnimatePresence>
             {voices.map((voice, index) => {
               if (Math.abs(index - activeIndex) > visibleRange) return null;
 
@@ -208,25 +226,48 @@ const Carousel3D: React.FC<Carousel3DProps> = ({
                 <motion.div
                   key={voice.name}
                   data-voice-card="true"
-                  className={`absolute w-[290px] max-h-[66vh] aspect-[3/5] sm:max-h-none sm:w-[360px] sm:aspect-[3/4] bg-[#FAF6EC]/96 dark:bg-[#092E24]/95 rounded-3xl border luminous-hairline overflow-hidden cursor-pointer ${
+                  className={`absolute w-[290px] max-h-[66vh] aspect-[3/5] sm:max-h-none sm:w-[360px] sm:aspect-[3/4] bg-[#FAF6EC]/95 dark:bg-[#092E24]/95 rounded-3xl border luminous-hairline overflow-hidden cursor-pointer ${
                     isActive
                       ? isPlaying
                         ? 'luxury-active-bloom border-[#B49049] dark:border-[#DFC589]/70 shadow-2xl'
                         : 'luxury-active-bloom border-[#B49049]/80 dark:border-[#C6A259]/55 shadow-2xl'
-                      : 'border-[#D9CEB8]/80 dark:border-[#C6A259]/18 shadow-lg'
+                      : 'border-[#D9CEB8]/80 dark:border-[#C6A259]/20 shadow-lg'
                   }`}
                   style={{ zIndex }}
-                  initial={{ scale: 0.8, opacity: 0, x: offset * 200 }}
-                  animate={{
-                    scale: isActive ? 1 : 0.85,
-                    opacity: 1,
-                    x,
-                    z: isActive ? 0 : -100 - Math.abs(offset) * 30,
-                    rotateY: offset * -15,
-                    filter: isActive ? 'blur(0px)' : 'blur(0.5px)',
-                  }}
+                  initial={
+                    shouldReduceMotion
+                      ? { opacity: 0, x }
+                      : {
+                          scale: isActive ? 0.92 : 0.78,
+                          opacity: 0,
+                          y: 18,
+                          x: offset * 220,
+                        }
+                  }
+                  animate={
+                    shouldReduceMotion
+                      ? { opacity: 1, x }
+                      : {
+                          scale: isActive ? 1 : 0.85,
+                          opacity: 1,
+                          y: 0,
+                          x,
+                          z: isActive ? 0 : -100 - Math.abs(offset) * 30,
+                          rotateY: offset * -15,
+                          filter: isActive ? 'blur(0px)' : 'blur(0.5px)',
+                        }
+                  }
                   exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.2 } }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                  transition={
+                    shouldReduceMotion
+                      ? { duration: 0.01 }
+                      : {
+                          type: 'spring',
+                          stiffness: 280,
+                          damping: 28,
+                          delay: applyStaggerRef.current ? Math.abs(offset) * 0.045 : 0,
+                        }
+                  }
                   onClick={() => {
                     if (disabled) return;
                     if (isActive) {
@@ -466,7 +507,7 @@ const Carousel3D: React.FC<Carousel3DProps> = ({
                       }`}
                     />
 
-                    <div className="h-[46%] sm:h-[44%] p-6 flex flex-col justify-between bg-[#FAF6EC]/98 dark:bg-[#092E24]/98 relative z-30">
+                    <div className="h-[46%] sm:h-[44%] p-6 flex flex-col justify-between bg-[#FAF6EC]/95 dark:bg-[#092E24]/95 relative z-30">
                       <div>
                         <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-[#7D602D] dark:text-[#C6A259] truncate">
                           {translateGender(voice.analysis.gender)} · {translatePitch(voice.pitch)} {t.pitchSuffix}
@@ -490,7 +531,7 @@ const Carousel3D: React.FC<Carousel3DProps> = ({
                         <p className="text-xs sm:text-sm text-[#2B463B] dark:text-[#C5D1CA] font-light leading-relaxed line-clamp-2">
                           {voice.analysis.characteristics.join(', ')}
                         </p>
-                        <div className="w-full h-px bg-[#D9CEB8]/70 dark:bg-[#C6A259]/18"></div>
+                        <div className="w-full h-px bg-[#D9CEB8]/70 dark:bg-[#C6A259]/20"></div>
                         {/* Clean Editorial Metadata Row */}
                         <div
                           className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px]"

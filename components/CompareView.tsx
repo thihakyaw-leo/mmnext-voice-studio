@@ -116,7 +116,7 @@ const CompareView: React.FC<CompareViewProps> = ({
 
     return (
       <div
-        className={`rounded-3xl border luminous-hairline transition-all duration-300 overflow-hidden flex flex-col bg-[#FAF6EC]/95 dark:bg-[#092E24]/92 ${
+        className={`rounded-3xl border luminous-hairline transition-all duration-300 overflow-hidden flex flex-col bg-[#FAF6EC]/95 dark:bg-[#092E24]/95 ${
           isSlotPlaying
             ? 'luxury-active-bloom border-[#B49049] dark:border-[#DFC589]/70 ring-1 ring-[#C6A259]/35 shadow-xl'
             : isSlotQueued
@@ -279,7 +279,7 @@ const CompareView: React.FC<CompareViewProps> = ({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4 pt-3 border-t border-[#D9CEB8]/70 dark:border-[#C6A259]/18">
+          <div className="grid grid-cols-2 gap-4 pt-3 border-t border-[#D9CEB8]/70 dark:border-[#C6A259]/20">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#7D602D] dark:text-[#C6A259]">
                 {t.genderLabel}
@@ -298,7 +298,7 @@ const CompareView: React.FC<CompareViewProps> = ({
             </div>
           </div>
 
-          <div className="pt-3 border-t border-[#D9CEB8]/70 dark:border-[#C6A259]/18">
+          <div className="pt-3 border-t border-[#D9CEB8]/70 dark:border-[#C6A259]/20">
             <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#7D602D] dark:text-[#C6A259] mb-1.5">
               {t.characteristicsLabel}
             </p>
@@ -315,7 +315,7 @@ const CompareView: React.FC<CompareViewProps> = ({
     <div className="w-full h-full overflow-y-auto scrollbar-hide">
       <div className="max-w-5xl mx-auto px-5 sm:px-8 pt-24 pb-16 lg:py-12 space-y-6">
         {/* Header + Sequential Controls */}
-        <div className="rounded-3xl bg-[#FAF6EC]/92 dark:bg-[#06231B]/90 border border-[#D9CEB8] dark:border-[#C6A259]/25 luminous-hairline p-5 sm:p-6 shadow-sm backdrop-blur-md">
+        <div className="rounded-3xl bg-[#FAF6EC]/95 dark:bg-[#06231B]/90 border border-[#D9CEB8] dark:border-[#C6A259]/25 luminous-hairline p-5 sm:p-6 shadow-sm backdrop-blur-md">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1">
               <div className="inline-flex items-center gap-2 text-[#7D602D] dark:text-[#DFC589]">

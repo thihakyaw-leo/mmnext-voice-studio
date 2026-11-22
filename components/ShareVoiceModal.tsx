@@ -70,7 +70,7 @@ const ShareVoiceModal: React.FC<ShareVoiceModalProps> = ({ isOpen, voices, onClo
 
   const shareUrl = useMemo(() => {
     if (typeof window === 'undefined' || voices.length === 0) return '';
-    const base = `${window.location.origin}${window.location.pathname}`;
+    const base = `${window.location.origin}/`;
     if (voices.length >= 2) {
       return `${base}?compare=${encodeURIComponent(voices[0].name)},${encodeURIComponent(voices[1].name)}`;
     }
@@ -94,26 +94,26 @@ const ShareVoiceModal: React.FC<ShareVoiceModalProps> = ({ isOpen, voices, onClo
 
       if (language === 'mm') {
         if (snippetStyle === 'short') {
-          return `🎙️ MMNext Voice Studio တွင် ${nameA} (${hzA}) နှင့် ${nameB} (${hzB}) အသံနှစ်ခုကို ယှဉ်တွဲနားထောင်ကြည့်ပါ!\n${shareUrl}\n#MMNextVoiceStudio #BurmeseTTS #VoiceCasting`;
+          return `🎙️ MMNext Studio တွင် ${nameA} (${hzA}) နှင့် ${nameB} (${hzB}) အသံနှစ်ခုကို ယှဉ်တွဲနားထောင်ကြည့်ပါ!\n${shareUrl}\n#MMNextStudio #BurmeseTTS #VoiceCasting`;
         }
         return [
-          `🎙️ MMNext Voice Studio — အသံနှိုင်းယှဉ်မှု`,
+          `🎙️ MMNext Studio — အသံနှိုင်းယှဉ်မှု`,
           `• Voice A: ${nameA} · ${translateGender(primaryVoice.analysis.gender)} · ${hzA} · ${toneA}`,
           `• Voice B: ${nameB} · ${translateGender(secondaryVoice.analysis.gender)} · ${hzB} · ${toneB}`,
           `👉 တိုက်ရိုက်နားထောင်ရန်: ${shareUrl}`,
-          `#MMNextVoiceStudio #VoiceCasting #BurmeseTTS`,
+          `#MMNextStudio #VoiceCasting #BurmeseTTS`,
         ].join('\n');
       }
 
       if (snippetStyle === 'short') {
-        return `🎙️ Compare ${nameA} (${hzA}, ${toneA}) vs ${nameB} (${hzB}, ${toneB}) on MMNext Voice Studio!\n${shareUrl}\n#MMNextVoiceStudio #VoiceCasting #TTS`;
+        return `🎙️ Compare ${nameA} (${hzA}, ${toneA}) vs ${nameB} (${hzB}, ${toneB}) on MMNext Studio!\n${shareUrl}\n#MMNextStudio #VoiceCasting #TTS`;
       }
       return [
-        `🎙️ Side-by-Side Voice Comparison on MMNext Voice Studio`,
+        `🎙️ Side-by-Side Voice Comparison on MMNext Studio`,
         `• Voice A: ${nameA} — ${translateGender(primaryVoice.analysis.gender)} · ${hzA} · ${toneA}`,
         `• Voice B: ${nameB} — ${translateGender(secondaryVoice.analysis.gender)} · ${hzB} · ${toneB}`,
         `Listen live: ${shareUrl}`,
-        `#MMNextVoiceStudio #VoiceCasting #TTS`,
+        `#MMNextStudio #VoiceCasting #TTS`,
       ].join('\n');
     }
 
@@ -128,28 +128,28 @@ const ShareVoiceModal: React.FC<ShareVoiceModalProps> = ({ isOpen, voices, onClo
 
     if (language === 'mm') {
       if (snippetStyle === 'short') {
-        return `🎙️ ${displayName} — ${genderLabel} · ${hzLabel} · ${toneLabel} အသံကို MMNext Voice Studio တွင် နားထောင်ကြည့်ပါ!\n${shareUrl}\n#MMNextVoiceStudio #BurmeseTTS #VoiceCasting`;
+        return `🎙️ ${displayName} — ${genderLabel} · ${hzLabel} · ${toneLabel} အသံကို MMNext Studio တွင် နားထောင်ကြည့်ပါ!\n${shareUrl}\n#MMNextStudio #BurmeseTTS #VoiceCasting`;
       }
       return [
-        `🎙️ ${displayName} — MMNext Voice Studio`,
+        `🎙️ ${displayName} — MMNext Studio`,
         `• အမျိုးအစား: ${genderLabel} · ${pitchLabel} (${hzLabel})`,
         `• ခံစားချက်လေသံ: ${toneLabel}`,
         `• အသံစရိုက်: ${traits}`,
         `👉 တိုက်ရိုက်နားထောင်ရန်: ${shareUrl}`,
-        `#MMNextVoiceStudio #BurmeseTTS #VoiceCasting`,
+        `#MMNextStudio #BurmeseTTS #VoiceCasting`,
       ].join('\n');
     }
 
     if (snippetStyle === 'short') {
-      return `🎙️ Meet "${displayName}" (${genderLabel}, ${hzLabel}, ${toneLabel}) on MMNext Voice Studio!\n${shareUrl}\n#MMNextVoiceStudio #VoiceCasting #TTS`;
+      return `🎙️ Meet "${displayName}" (${genderLabel}, ${hzLabel}, ${toneLabel}) on MMNext Studio!\n${shareUrl}\n#MMNextStudio #VoiceCasting #TTS`;
     }
     return [
-      `🎙️ ${displayName} — MMNext Voice Studio`,
+      `🎙️ ${displayName} — MMNext Studio`,
       `• Profile: ${genderLabel} · ${pitchLabel} (${hzLabel})`,
       `• Emotional Tone: ${toneLabel}`,
       `• Traits: ${traits}`,
       `Listen live: ${shareUrl}`,
-      `#MMNextVoiceStudio #VoiceCasting #TTS`,
+      `#MMNextStudio #VoiceCasting #TTS`,
     ].join('\n');
   }, [
     primaryVoice,
@@ -229,10 +229,10 @@ const ShareVoiceModal: React.FC<ShareVoiceModalProps> = ({ isOpen, voices, onClo
     setShareError(null);
 
     const shareTitle = isCompareShare && secondaryVoice
-      ? `${primaryVoice.characterName?.mm || primaryVoice.name} vs ${secondaryVoice.characterName?.mm || secondaryVoice.name} — MMNext Voice Studio`
+      ? `${primaryVoice.characterName?.mm || primaryVoice.name} vs ${secondaryVoice.characterName?.mm || secondaryVoice.name} — MMNext Studio`
       : primaryVoice.characterName?.mm
-      ? `${primaryVoice.characterName.mm} (${primaryVoice.name}) — MMNext Voice Studio`
-      : `${primaryVoice.name} — MMNext Voice Studio`;
+      ? `${primaryVoice.characterName.mm} (${primaryVoice.name}) — MMNext Studio`
+      : `${primaryVoice.name} — MMNext Studio`;
 
     try {
       await navigator.share({

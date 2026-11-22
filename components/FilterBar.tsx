@@ -26,6 +26,7 @@ import {
   X,
   LogIn,
   Key,
+  HardDrive,
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useFirebase } from './FirebaseProvider';
@@ -51,6 +52,7 @@ interface FilterBarProps {
   onOpenPitchChart: () => void;
   onOpenLogin: () => void;
   onOpenApiKeySettings?: () => void;
+  onOpenGoogleDrive: () => void;
 }
 
 const FilterBar: React.FC<FilterBarProps> = ({
@@ -72,10 +74,19 @@ const FilterBar: React.FC<FilterBarProps> = ({
   onOpenPitchChart,
   onOpenLogin,
   onOpenApiKeySettings,
+  onOpenGoogleDrive,
 }) => {
   const { language, setLanguage, t, translateGender, translatePitch } = useI18n();
-  const { user, authBusy, authError, cloudSynced, dailyQuota, signOut, clearAuthError } =
-    useFirebase();
+  const {
+    user,
+    authBusy,
+    authError,
+    driveConnected,
+    cloudSynced,
+    dailyQuota,
+    signOut,
+    clearAuthError,
+  } = useFirebase();
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
 
@@ -110,7 +121,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
     <>
       {/* Desktop Top Menu Bar (lg and up) */}
       {/* Desktop Top Menu Bar (lg and up) */}
-      <div className="hidden lg:block relative z-50 w-full bg-[#FAF6EC]/92 dark:bg-[#06231B]/90 backdrop-blur-xl border-b border-[#D9CEB8] dark:border-[#C6A259]/28 luminous-hairline transition-colors duration-300 shadow-xs before:absolute before:inset-x-0 before:top-0 before:h-[1px] before:bg-gradient-to-r before:from-transparent before:via-[#B49049]/35 dark:before:via-[#DFC589]/40 before:to-transparent before:pointer-events-none">
+      <div className="hidden lg:block relative z-50 w-full text-[#072920] dark:text-[#FAF6EC] bg-[#FAF6EC]/95 dark:bg-[#06231B]/90 backdrop-blur-xl border-b border-[#D9CEB8] dark:border-[#C6A259]/30 luminous-hairline transition-colors duration-300 shadow-xs before:absolute before:inset-x-0 before:top-0 before:h-[1px] before:bg-gradient-to-r before:from-transparent before:via-[#B49049]/35 dark:before:via-[#DFC589]/40 before:to-transparent before:pointer-events-none">
         <div className="max-w-[1800px] mx-auto px-6 lg:px-10 relative">
           {/* Row 1: Brand, AI Casting & Utility Actions */}
           <div className="flex items-center justify-between h-16 gap-4">
@@ -186,6 +197,23 @@ const FilterBar: React.FC<FilterBarProps> = ({
                 aria-label={t.pitchDistribution}
               >
                 <BarChart3 size={14} />
+              </button>
+
+              <button
+                type="button"
+                onClick={onOpenGoogleDrive}
+                className={`relative p-2 rounded-lg border transition-all active:scale-95 shadow-xs ${
+                  driveConnected
+                    ? 'bg-[#E9F3EE] dark:bg-[#114637] border-[#236D56]/40 dark:border-[#C6A259]/50 text-[#114637] dark:text-[#DFC589]'
+                    : 'bg-[#FAF6EC]/90 dark:bg-[#092E24]/85 border-[#D9CEB8] dark:border-[#C6A259]/25 text-[#2B463B] dark:text-[#DFC589] hover:bg-[#EBE2CE] dark:hover:bg-[#114637] hover:text-[#06231B] dark:hover:text-[#FAF6EC] hover:border-[#B49049]/60 dark:hover:border-[#DFC589]/50'
+                }`}
+                title={driveConnected ? `${t.googleDrive} · ${t.driveConnected}` : t.connectGoogleDrive}
+                aria-label={driveConnected ? `${t.googleDrive} · ${t.driveConnected}` : t.connectGoogleDrive}
+              >
+                <HardDrive size={14} />
+                {driveConnected && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#2E8267] ring-1 ring-[#FAF6EC] dark:ring-[#06231B]" />
+                )}
               </button>
 
               <button
@@ -389,6 +417,30 @@ const FilterBar: React.FC<FilterBarProps> = ({
                           </div>
                         )}
 
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setAccountMenuOpen(false);
+                            onOpenGoogleDrive();
+                          }}
+                          className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-[#F4EDE0] dark:bg-[#0D3126] hover:bg-[#EBE2CE] dark:hover:bg-[#114637] text-[#06231B] dark:text-[#EAD7A4] text-xs font-medium transition-colors border border-[#D9CEB8] dark:border-[#C6A259]/25"
+                        >
+                          <span className="inline-flex items-center gap-1.5">
+                            <HardDrive size={13} className="text-[#7D602D] dark:text-[#DFC589]" />
+                            <span>{t.googleDrive}</span>
+                          </span>
+                          <span
+                            className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                              driveConnected
+                                ? 'bg-[#E9F3EE] dark:bg-[#145240] text-[#114637] dark:text-[#5FA88E]'
+                                : 'text-[#5B7469] dark:text-[#9EB5AC]'
+                            }`}
+                          >
+                            {driveConnected ? t.driveConnected : t.connectGoogleDrive}
+                          </span>
+                        </button>
+
                         {onOpenApiKeySettings && (
                           <button
                             type="button"
@@ -459,7 +511,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
           </div>
 
           {/* Row 2: Search & Voice Filters */}
-          <div className="relative flex flex-wrap items-center justify-between gap-3 py-2.5 border-t border-[#D9CEB8] dark:border-[#C6A259]/22 before:absolute before:inset-x-0 before:top-0 before:h-[1px] before:bg-gradient-to-r before:from-transparent before:via-[#B49049]/25 dark:before:via-[#DFC589]/25 before:to-transparent before:pointer-events-none">
+          <div className="relative flex flex-wrap items-center justify-between gap-3 py-2.5 border-t border-[#D9CEB8] dark:border-[#C6A259]/20 before:absolute before:inset-x-0 before:top-0 before:h-[1px] before:bg-gradient-to-r before:from-transparent before:via-[#B49049]/25 dark:before:via-[#DFC589]/25 before:to-transparent before:pointer-events-none">
             {/* Search Input */}
             <div className="relative group flex-1 min-w-[180px] max-w-xs transition-all">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#5B7469] dark:text-[#8DA399] group-focus-within:text-[#06231B] dark:group-focus-within:text-[#DFC589] transition-colors">
@@ -541,7 +593,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
       </div>
 
       {/* Mobile Compact Fixed Top Bar (< lg) */}
-      <div className="lg:hidden fixed top-0 inset-x-0 z-50 h-14 px-4 flex items-center justify-between bg-[#FAF6EC]/92 dark:bg-[#06231B]/90 backdrop-blur-xl border-b border-[#D9CEB8] dark:border-[#C6A259]/28 luminous-hairline transition-colors duration-300">
+      <div className="lg:hidden fixed top-0 inset-x-0 z-50 h-14 px-4 flex items-center justify-between text-[#072920] dark:text-[#FAF6EC] bg-[#FAF6EC]/95 dark:bg-[#06231B]/90 backdrop-blur-xl border-b border-[#D9CEB8] dark:border-[#C6A259]/30 luminous-hairline transition-colors duration-300">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center shadow-md shrink-0 ring-1 ring-[#B49049]/45 dark:ring-[#C6A259]/50">
             <img
@@ -588,6 +640,23 @@ const FilterBar: React.FC<FilterBarProps> = ({
               <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full bg-[#0D3A2E] dark:bg-[#C6A259] text-[#FAF6EC] dark:text-[#041813] text-[9px] font-bold leading-none">
                 {compareCount}
               </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenGoogleDrive}
+            className={`relative inline-flex items-center justify-center p-2 rounded-lg border transition-colors ${
+              driveConnected
+                ? 'bg-[#E9F3EE] dark:bg-[#145240] border-[#236D56]/40 dark:border-[#C6A259]/50 text-[#114637] dark:text-[#EAD7A4]'
+                : 'bg-[#F4EDE0]/80 dark:bg-[#092E24] border-[#D9CEB8]/80 dark:border-[#C6A259]/20 text-[#2F4D42] dark:text-[#C6A259]'
+            }`}
+            aria-label={t.googleDrive}
+            title={driveConnected ? `${t.googleDrive} · ${t.driveConnected}` : t.connectGoogleDrive}
+          >
+            <HardDrive size={16} />
+            {driveConnected && (
+              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#2E8267] ring-1 ring-[#FAF6EC] dark:ring-[#06231B]" />
             )}
           </button>
 

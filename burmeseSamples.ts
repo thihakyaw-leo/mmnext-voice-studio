@@ -77,8 +77,8 @@ export function getBurmeseDefaultSampleSpec(voice: Voice): BurmeseVoiceSampleSpe
   const script =
     BURMESE_VOICE_SCRIPTS[voice.name] ||
     (voice.analysis.gender === 'Female'
-      ? 'မင်္ဂလာပါရှင်။ MMNext Voice Studio မှ ကြိုဆိုပါတယ်။ ကျွန်မရဲ့ သဘာဝကျတဲ့ မြန်မာအသံနမူနာကို နားဆင်ကြည့်ပါ။'
-      : 'မင်္ဂလာပါခင်ဗျာ။ MMNext Voice Studio မှ ကြိုဆိုပါတယ်။ ကျွန်တော်ရဲ့ သဘာဝကျတဲ့ မြန်မာအသံနမူနာကို နားဆင်ကြည့်ပါ။');
+      ? 'မင်္ဂလာပါရှင်။ MMNext Studio မှ ကြိုဆိုပါတယ်။ ကျွန်မရဲ့ သဘာဝကျတဲ့ မြန်မာအသံနမူနာကို နားဆင်ကြည့်ပါ။'
+      : 'မင်္ဂလာပါခင်ဗျာ။ MMNext Studio မှ ကြိုဆိုပါတယ်။ ကျွန်တော်ရဲ့ သဘာဝကျတဲ့ မြန်မာအသံနမူနာကို နားဆင်ကြည့်ပါ။');
 
   const traits = [...voice.characteristics, ...voice.analysis.characteristics]
     .filter((c) => !/american|accent/i.test(c))

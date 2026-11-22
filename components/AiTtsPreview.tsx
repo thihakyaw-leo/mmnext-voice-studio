@@ -4,11 +4,32 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Play, Square, Loader2, Volume2, AlertCircle, ChevronDown, Heart } from 'lucide-react';
+import {
+  Play,
+  Square,
+  Loader2,
+  Volume2,
+  AlertCircle,
+  ChevronDown,
+  Heart,
+  HardDrive,
+  Check,
+  ExternalLink,
+} from 'lucide-react';
 import { Voice } from '../types';
 import AudioVisualizer, { VisualizerVariant } from './AudioVisualizer';
 import { useI18n } from '../i18n';
-import { getGeminiApiKeyHeaders, notifyGeminiQuotaUpdated } from '../firebase';
+import { useFirebase } from './FirebaseProvider';
+import {
+  getGeminiApiKeyHeaders,
+  getGoogleDriveAccessToken,
+  notifyGeminiQuotaUpdated,
+} from '../firebase';
+import {
+  DriveAuthError,
+  DriveFileRecord,
+  uploadFileToGoogleDrive,
+} from '../utils/googleDrive';
 import { beginTrackedApiRequest, endTrackedApiRequest } from '../utils/networkStatus';
 
 interface AiTtsPreviewProps {
@@ -27,9 +48,12 @@ const AiTtsPreview: React.FC<AiTtsPreviewProps> = ({
   visualizerVariant = 'wave',
 }) => {
   const { t, translateGender } = useI18n();
+  const { connectGoogleDrive, disconnectGoogleDrive } = useFirebase();
   const [selectedVoiceName, setSelectedVoiceName] = useState(voices[0]?.name || '');
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSavingToDrive, setIsSavingToDrive] = useState(false);
+  const [savedDriveRecord, setSavedDriveRecord] = useState<DriveFileRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
 
@@ -37,6 +61,7 @@ const AiTtsPreview: React.FC<AiTtsPreviewProps> = ({
   const audioCtxRef = useRef<AudioContext | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const ttsBlobCacheRef = useRef<Map<string, Blob>>(new Map());
   const isMountedRef = useRef(true);
 
   const stopAudio = () => {
@@ -155,6 +180,8 @@ const AiTtsPreview: React.FC<AiTtsPreviewProps> = ({
       const wavBlob = await response.blob();
       if (!isMountedRef.current || controller.signal.aborted) return;
 
+      ttsBlobCacheRef.current.set(`${selectedVoiceName}::${text}`, wavBlob);
+
       const objectUrl = URL.createObjectURL(wavBlob);
       objectUrlRef.current = objectUrl;
 
@@ -216,13 +243,80 @@ const AiTtsPreview: React.FC<AiTtsPreviewProps> = ({
     }
   };
 
+  const handleSavePreviewToDrive = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!selectedVoiceName || !text.trim() || isSavingToDrive) return;
+
+    setError(null);
+    setSavedDriveRecord(null);
+
+    let token = getGoogleDriveAccessToken();
+    if (!token) {
+      token = await connectGoogleDrive();
+    }
+    if (!token) return;
+
+    setIsSavingToDrive(true);
+    const cacheKey = `${selectedVoiceName}::${text}`;
+    let wavBlob = ttsBlobCacheRef.current.get(cacheKey);
+
+    try {
+      if (!wavBlob) {
+        const reqId = beginTrackedApiRequest();
+        const startedAt = performance.now();
+        const authHeaders = await getGeminiApiKeyHeaders();
+        const response = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          body: JSON.stringify({
+            text,
+            voiceName: selectedVoiceName,
+          }),
+        });
+        endTrackedApiRequest(reqId, performance.now() - startedAt, response.ok);
+        notifyGeminiQuotaUpdated();
+
+        if (!response.ok) {
+          const errBody = await response.json().catch(() => ({}));
+          throw new Error(errBody.error || t.ttsFailedError);
+        }
+        wavBlob = await response.blob();
+        ttsBlobCacheRef.current.set(cacheKey, wavBlob);
+      }
+
+      const safeVoiceSlug = selectedVoiceName.toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+      const dateStamp = new Date().toISOString().slice(0, 10);
+      const record = await uploadFileToGoogleDrive(token, {
+        fileName: `${safeVoiceSlug}-casting-preview-${dateStamp}.wav`,
+        mimeType: 'audio/wav',
+        blob: wavBlob,
+        description: `MMNext Studio AI Casting TTS preview (${selectedVoiceName})`,
+      });
+      if (isMountedRef.current) {
+        setSavedDriveRecord(record);
+      }
+    } catch (err) {
+      if (!isMountedRef.current) return;
+      if (err instanceof DriveAuthError) {
+        disconnectGoogleDrive();
+        setError(t.driveTokenExpiredNotice);
+      } else {
+        setError(err instanceof Error ? err.message : t.driveSaveFailedError);
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsSavingToDrive(false);
+      }
+    }
+  };
+
   const isSelectedFavorite = favorites.includes(selectedVoiceName);
 
   const isDark =
     typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
 
   return (
-    <div className="w-full bg-[#F4EDE0] dark:bg-[#041813] rounded-xl border border-[#D9CEB8] dark:border-[#C6A259]/22 overflow-hidden">
+    <div className="w-full bg-[#F4EDE0] dark:bg-[#041813] rounded-xl border border-[#D9CEB8] dark:border-[#C6A259]/25 overflow-hidden">
       {/* Header / Controls */}
       <div className="p-4 flex flex-col sm:flex-row gap-3 items-center justify-between bg-[#FAF6EC] dark:bg-[#06231B] border-b border-[#D9CEB8]/80 dark:border-[#C6A259]/20">
         {/* Voice Selector + Favorite Button */}
@@ -265,25 +359,68 @@ const AiTtsPreview: React.FC<AiTtsPreviewProps> = ({
           )}
         </div>
 
-        {/* Play Button */}
-        <button
-          onClick={handlePlay}
-          disabled={isLoading}
-          className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 transform active:scale-95 border ${
-            isPlaying
-              ? 'bg-[#EBE2CE] dark:bg-[#114637] text-[#06231B] dark:text-[#EAD7A4] border-[#B49049]/50 dark:border-[#DFC589]/40 hover:bg-[#DFD3BA] dark:hover:bg-[#195E4A]'
-              : 'bg-[#0D3A2E] hover:bg-[#145240] dark:bg-gradient-to-r dark:from-[#DFC589] dark:to-[#B49049] dark:hover:brightness-105 text-[#FAF6EC] dark:text-[#041813] border-[#B49049]/40 shadow-md'
-          } ${isLoading ? 'cursor-not-allowed opacity-70' : ''}`}
-        >
-          {isLoading ? (
-            <Loader2 size={16} className="animate-spin" />
-          ) : isPlaying ? (
-            <Square size={16} className="fill-current" />
-          ) : (
-            <Play size={16} className="fill-current" />
+        {/* Play & Save to Drive Buttons */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={(e) => void handleSavePreviewToDrive(e)}
+            disabled={isSavingToDrive || isLoading || !selectedVoiceName}
+            title={t.saveAudioWavToDrive}
+            aria-label={t.saveAudioWavToDrive}
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium border transition-colors disabled:opacity-50 ${
+              savedDriveRecord
+                ? 'bg-[#E9F3EE] dark:bg-[#114637] border-[#236D56]/40 dark:border-[#C6A259]/50 text-[#114637] dark:text-[#DFC589]'
+                : 'bg-[#FAF6EC] dark:bg-[#041813]/85 border-[#D9CEB8] dark:border-[#C6A259]/25 text-[#06231B] dark:text-[#EAD7A4] hover:bg-[#EBE2CE] dark:hover:bg-[#114637]'
+            }`}
+          >
+            {isSavingToDrive ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : savedDriveRecord ? (
+              <Check size={14} />
+            ) : (
+              <HardDrive size={14} />
+            )}
+            <span className="hidden sm:inline">
+              {isSavingToDrive
+                ? t.savingToDrive
+                : savedDriveRecord
+                ? t.savedToDriveNotice
+                : t.saveAudioWavToDrive}
+            </span>
+          </button>
+
+          {savedDriveRecord?.webViewLink && (
+            <a
+              href={savedDriveRecord.webViewLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={t.openInDrive}
+              aria-label={t.openInDrive}
+              className="p-2 rounded-full bg-[#E9F3EE] dark:bg-[#114637] border border-[#236D56]/40 dark:border-[#C6A259]/50 text-[#114637] dark:text-[#DFC589] hover:brightness-110 transition-all"
+            >
+              <ExternalLink size={14} />
+            </a>
           )}
-          <span>{isLoading ? t.generating : isPlaying ? t.stopPreview : t.listen}</span>
-        </button>
+
+          <button
+            onClick={handlePlay}
+            disabled={isLoading}
+            className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 transform active:scale-95 border ${
+              isPlaying
+                ? 'bg-[#EBE2CE] dark:bg-[#114637] text-[#06231B] dark:text-[#EAD7A4] border-[#B49049]/50 dark:border-[#DFC589]/40 hover:bg-[#DFD3BA] dark:hover:bg-[#195E4A]'
+                : 'bg-[#0D3A2E] hover:bg-[#145240] dark:bg-gradient-to-r dark:from-[#DFC589] dark:to-[#B49049] dark:hover:brightness-105 text-[#FAF6EC] dark:text-[#041813] border-[#B49049]/40 shadow-md'
+            } ${isLoading ? 'cursor-not-allowed opacity-70' : ''}`}
+          >
+            {isLoading ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : isPlaying ? (
+              <Square size={16} className="fill-current" />
+            ) : (
+              <Play size={16} className="fill-current" />
+            )}
+            <span>{isLoading ? t.generating : isPlaying ? t.stopPreview : t.listen}</span>
+          </button>
+        </div>
       </div>
 
       {/* Visualizer Area */}

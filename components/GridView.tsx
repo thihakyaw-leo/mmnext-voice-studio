@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Voice } from '../types';
 import VoiceCard from './VoiceCard';
 import { VisualizerVariant } from './AudioVisualizer';
@@ -22,6 +23,7 @@ interface GridViewProps {
   onEditCharacter?: (voice: Voice) => void;
   visualizerVariant?: VisualizerVariant;
   analyserNode?: AnalyserNode | null;
+  filterKey?: string;
 }
 
 const GridView: React.FC<GridViewProps> = ({
@@ -38,9 +40,11 @@ const GridView: React.FC<GridViewProps> = ({
   onEditCharacter,
   visualizerVariant = 'wave',
   analyserNode = null,
+  filterKey = 'default',
 }) => {
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const prevIndexRef = useRef<number>(activeIndex);
+  const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (prevIndexRef.current !== activeIndex) {
@@ -63,25 +67,39 @@ const GridView: React.FC<GridViewProps> = ({
             const compareIdx = compareVoices.indexOf(voice.name);
             const compareSlot = compareIdx === 0 ? 'A' : compareIdx === 1 ? 'B' : null;
             return (
-              <VoiceCard
-                key={voice.name}
-                ref={(el) => {
-                  cardRefs.current[index] = el;
-                }}
-                voice={voice}
-                isPlaying={playingVoice === voice.name}
-                isSelected={index === activeIndex}
-                onSelect={() => onSelectIndex(index)}
-                onPlayToggle={onPlayToggle}
-                isFavorite={favorites.includes(voice.name)}
-                onToggleFavorite={onToggleFavorite}
-                compareSlot={compareSlot}
-                onToggleCompare={onToggleCompare}
-                onShare={onShare}
-                onEditCharacter={onEditCharacter}
-                visualizerVariant={visualizerVariant}
-                analyserNode={analyserNode}
-              />
+              <motion.div
+                key={`${filterKey}:${voice.name}`}
+                initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 14, scale: 0.97 }}
+                animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+                transition={
+                  shouldReduceMotion
+                    ? { duration: 0.01 }
+                    : {
+                        duration: 0.34,
+                        delay: Math.min(index, 12) * 0.03,
+                        ease: [0.22, 1, 0.36, 1],
+                      }
+                }
+              >
+                <VoiceCard
+                  ref={(el) => {
+                    cardRefs.current[index] = el;
+                  }}
+                  voice={voice}
+                  isPlaying={playingVoice === voice.name}
+                  isSelected={index === activeIndex}
+                  onSelect={() => onSelectIndex(index)}
+                  onPlayToggle={onPlayToggle}
+                  isFavorite={favorites.includes(voice.name)}
+                  onToggleFavorite={onToggleFavorite}
+                  compareSlot={compareSlot}
+                  onToggleCompare={onToggleCompare}
+                  onShare={onShare}
+                  onEditCharacter={onEditCharacter}
+                  visualizerVariant={visualizerVariant}
+                  analyserNode={analyserNode}
+                />
+              </motion.div>
             );
           })}
         </div>

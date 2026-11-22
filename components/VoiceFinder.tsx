@@ -5,11 +5,17 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI, Type } from '../genaiProxy';
-import { Sparkles, Loader2, X, ArrowRight, Wand2, History, Trash2, Key } from 'lucide-react';
+import { Sparkles, Loader2, X, ArrowRight, Wand2, History, Trash2, Key, FolderSearch } from 'lucide-react';
 import { Voice, AiRecommendation } from '../types';
 import { useI18n } from '../i18n';
 import { useFirebase } from './FirebaseProvider';
-import { deleteCastingHistoryInFirestore } from '../firebase';
+import {
+  deleteCastingHistoryInFirestore,
+  getGoogleDriveAccessToken,
+  MAX_PROMPT_LENGTH,
+} from '../firebase';
+import { DriveAuthError, readPickedDriveFileContent } from '../utils/googleDrive';
+import { openGoogleDrivePicker } from '../utils/googlePicker';
 
 interface VoiceFinderProps {
   voices: Voice[];
@@ -25,9 +31,10 @@ const VoiceFinder: React.FC<VoiceFinderProps> = ({
   onOpenApiKeySettings,
 }) => {
   const { t, language } = useI18n();
-  const { user, cloudCastingHistory } = useFirebase();
+  const { user, cloudCastingHistory, connectGoogleDrive, disconnectGoogleDrive } = useFirebase();
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isPickingBrief, setIsPickingBrief] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isApiKeyError, setIsApiKeyError] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
@@ -38,6 +45,7 @@ const VoiceFinder: React.FC<VoiceFinderProps> = ({
     textAreaRef.current?.focus();
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isPickingBrief) return;
       if (e.key === 'Escape') {
         onClose();
         return;
@@ -68,13 +76,55 @@ const VoiceFinder: React.FC<VoiceFinderProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [onClose, isPickingBrief]);
 
   const examples = [
     { label: t.exampleIrishLabel, text: t.exampleIrishText },
     { label: t.exampleSgLabel, text: t.exampleSgText },
     ...(language === 'mm' ? [{ label: t.exampleMmLabel, text: t.exampleMmText }] : []),
   ];
+
+  const handlePickBriefFromDrive = async () => {
+    if (isPickingBrief || loading) return;
+    setError(null);
+    setIsApiKeyError(false);
+
+    let token = getGoogleDriveAccessToken();
+    if (!token) {
+      token = await connectGoogleDrive();
+    }
+    if (!token) return;
+
+    setIsPickingBrief(true);
+    try {
+      const picked = await openGoogleDrivePicker(token, {
+        title: t.pickerLoadBriefBtn,
+      });
+      if (!picked) return;
+
+      const content = await readPickedDriveFileContent(token, picked);
+      if (content.kind !== 'text') {
+        setError(t.pickerUnsupportedFileNotice);
+        return;
+      }
+      const nextBrief = content.text.trim().slice(0, MAX_PROMPT_LENGTH);
+      if (!nextBrief) {
+        setError(t.pickerEmptyTextNotice);
+        return;
+      }
+      setQuery(nextBrief);
+      textAreaRef.current?.focus();
+    } catch (err) {
+      if (err instanceof DriveAuthError) {
+        disconnectGoogleDrive();
+        setError(t.driveTokenExpiredNotice);
+      } else {
+        setError(err instanceof Error ? err.message : t.driveSaveFailedError);
+      }
+    } finally {
+      setIsPickingBrief(false);
+    }
+  };
 
   const handleAnalyze = async () => {
     if (!query.trim()) return;
@@ -318,6 +368,19 @@ const VoiceFinder: React.FC<VoiceFinderProps> = ({
                   {ex.label}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => void handlePickBriefFromDrive()}
+                disabled={loading || isPickingBrief}
+                className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full bg-[#FAF6EC] dark:bg-[#041813] text-[#7D602D] dark:text-[#DFC589] border border-[#B49049]/40 dark:border-[#C6A259]/35 hover:bg-[#EBE2CE] dark:hover:bg-[#114637] transition-all disabled:opacity-50"
+              >
+                {isPickingBrief ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  <FolderSearch size={12} />
+                )}
+                <span>{isPickingBrief ? t.openingGooglePicker : t.pickerLoadBriefBtn}</span>
+              </button>
             </div>
 
             {user && cloudCastingHistory.length > 0 && (

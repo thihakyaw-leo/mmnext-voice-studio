@@ -7,6 +7,7 @@ import { initializeApp } from 'firebase/app';
 import {
   getAuth,
   GoogleAuthProvider,
+  onAuthStateChanged,
   signInWithPopup,
   signOut,
   User,
@@ -35,6 +36,7 @@ import { AiRecommendation } from './types';
 import type { BurmeseCharacterName } from './burmeseNames';
 import type { VisualizerVariant } from './components/AudioVisualizer';
 import type { Language } from './i18n';
+import { GOOGLE_DRIVE_SCOPES } from './utils/googleDrive';
 
 // Validation Synchronicity Constants (Mirrored verbatim from firebase-blueprint.json & firestore.rules)
 export const ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
@@ -53,7 +55,7 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 export const analytics =
-  typeof window !== 'undefined'
+  typeof window !== 'undefined' && firebaseConfig.measurementId
     ? (() => {
         try {
           return getAnalytics(app);
@@ -65,6 +67,45 @@ export const analytics =
     : null;
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+// In-memory only OAuth access token for Google Drive (never written to localStorage/sessionStorage)
+let cachedDriveAccessToken: string | null = null;
+const driveTokenListeners = new Set<(connected: boolean) => void>();
+
+function notifyDriveTokenListeners() {
+  const connected = Boolean(cachedDriveAccessToken);
+  for (const listener of driveTokenListeners) {
+    try {
+      listener(connected);
+    } catch {}
+  }
+}
+
+export function getGoogleDriveAccessToken(): string | null {
+  return cachedDriveAccessToken;
+}
+
+export function clearGoogleDriveAccessToken(): void {
+  if (cachedDriveAccessToken !== null) {
+    cachedDriveAccessToken = null;
+    notifyDriveTokenListeners();
+  }
+}
+
+export function subscribeGoogleDriveTokenState(
+  listener: (connected: boolean) => void
+): () => void {
+  driveTokenListeners.add(listener);
+  return () => {
+    driveTokenListeners.delete(listener);
+  };
+}
+
+onAuthStateChanged(auth, (currentUser) => {
+  if (!currentUser) {
+    clearGoogleDriveAccessToken();
+  }
+});
 
 export enum OperationType {
   CREATE = 'create',
@@ -135,7 +176,32 @@ export async function signInWithGooglePopup(): Promise<User> {
   return result.user;
 }
 
+export async function connectGoogleDrivePopup(): Promise<{ user: User; accessToken: string }> {
+  const driveProvider = new GoogleAuthProvider();
+  for (const scope of GOOGLE_DRIVE_SCOPES) {
+    driveProvider.addScope(scope);
+  }
+  const params: Record<string, string> = {
+    prompt: 'consent',
+  };
+  if (auth.currentUser?.email) {
+    params.login_hint = auth.currentUser.email;
+  }
+  driveProvider.setCustomParameters(params);
+
+  const result = await signInWithPopup(auth, driveProvider);
+  const credential = GoogleAuthProvider.credentialFromResult(result);
+  const accessToken = credential?.accessToken;
+  if (!accessToken) {
+    throw new Error('Google Drive permission was not granted.');
+  }
+  cachedDriveAccessToken = accessToken;
+  notifyDriveTokenListeners();
+  return { user: result.user, accessToken };
+}
+
 export async function signOutFromFirebase(): Promise<void> {
+  clearGoogleDriveAccessToken();
   if (typeof window !== 'undefined') {
     try {
       localStorage.removeItem('mmnext_user_gemini_api_key');

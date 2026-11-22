@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { VOICE_DATA } from './constants';
 import Carousel3D from './components/Carousel3D';
 import GridView from './components/GridView';
@@ -16,8 +16,10 @@ import CompareView, { CompareSequencePhase } from './components/CompareView';
 import AudioVisualizerBar from './components/AudioVisualizerBar';
 import PitchDistributionModal from './components/PitchDistributionModal';
 import LoginModal from './components/LoginModal';
+import LegalPages, { PublicInfoPage } from './components/LegalPages';
 import ShareVoiceModal from './components/ShareVoiceModal';
 import CharacterProfileModal from './components/CharacterProfileModal';
+import GoogleDriveModal from './components/GoogleDriveModal';
 import { PITCH_HZ_MIN_BOUND, PITCH_HZ_MAX_BOUND } from './components/PitchRangeFilter';
 import { VisualizerVariant } from './components/AudioVisualizer';
 import { getVoicePitchHz } from './utils/pitchDetection';
@@ -51,7 +53,36 @@ import {
 
 const FAVORITES_STORAGE_KEY = 'gemini-voice-library:favorites';
 const VISUALIZER_VARIANT_STORAGE_KEY = 'gemini-voice-library:visualizer-variant';
+const THEME_STORAGE_KEY = 'gemini-voice-library:theme';
 const VALID_VOICE_NAMES = new Set(VOICE_DATA.map((v) => v.name));
+const LOGIN_ROUTE_PATH = '/login';
+const PRIVACY_ROUTE_PATH = '/privacy-policy';
+const TERMS_ROUTE_PATH = '/terms';
+const STORAGE_ROUTE_PATH = '/storage';
+
+function normalizeRoutePath(pathname: string): string {
+  if (!pathname || pathname === '/') return '/';
+  const trimmed = pathname.replace(/\/+$/, '');
+  return trimmed || '/';
+}
+
+function getPublicInfoPageForPath(pathname: string): PublicInfoPage | null {
+  const normalized = normalizeRoutePath(pathname).toLowerCase();
+  if (normalized === PRIVACY_ROUTE_PATH || normalized === '/privacy') return 'privacy';
+  if (normalized === TERMS_ROUTE_PATH || normalized === '/terms-of-service') return 'terms';
+  if (normalized === STORAGE_ROUTE_PATH) return 'storage';
+  return null;
+}
+
+function getCanonicalPathForPublicPage(page: PublicInfoPage): string {
+  if (page === 'privacy') return PRIVACY_ROUTE_PATH;
+  if (page === 'terms') return TERMS_ROUTE_PATH;
+  return STORAGE_ROUTE_PATH;
+}
+
+function getUserHomePath(uid: string): string {
+  return `/${encodeURIComponent(uid)}/home`;
+}
 
 function loadFavoritesFromStorage(): string[] {
   try {
@@ -102,10 +133,20 @@ const App: React.FC = () => {
   const [showPitchChart, setShowPitchChart] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [showGoogleDriveModal, setShowGoogleDriveModal] = useState(false);
   const [shareTargets, setShareTargets] = useState<Voice[] | null>(null);
   const [editingCharacterVoice, setEditingCharacterVoice] = useState<Voice | null>(null);
   const [viewMode, setViewMode] = useState<'carousel' | 'grid' | 'compare'>('carousel');
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(THEME_STORAGE_KEY);
+      if (saved === 'light') return false;
+      if (saved === 'dark') return true;
+    } catch {
+      // Ignore storage access errors
+    }
+    return true;
+  });
   const [visualizerVariant, setVisualizerVariant] = useState<VisualizerVariant>(() => {
     try {
       const saved = localStorage.getItem(VISUALIZER_VARIANT_STORAGE_KEY);
@@ -160,6 +201,61 @@ const App: React.FC = () => {
     search: '',
     favoritesOnly: false,
   });
+
+  const [currentPath, setCurrentPath] = useState<string>(() =>
+    typeof window !== 'undefined' ? normalizeRoutePath(window.location.pathname) : LOGIN_ROUTE_PATH
+  );
+
+  const navigateToPath = useCallback((targetPath: string, replace = false) => {
+    if (typeof window === 'undefined') return;
+    const normalizedTarget = normalizeRoutePath(targetPath);
+    const actualPath = normalizeRoutePath(window.location.pathname);
+    if (actualPath !== normalizedTarget) {
+      const nextUrl = `${normalizedTarget}${window.location.search}${window.location.hash}`;
+      if (replace) {
+        window.history.replaceState(null, '', nextUrl);
+      } else {
+        window.history.pushState(null, '', nextUrl);
+      }
+    }
+    setCurrentPath(normalizedTarget);
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(normalizeRoutePath(window.location.pathname));
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return;
+    const actualPath = normalizeRoutePath(window.location.pathname);
+    const publicPage = getPublicInfoPageForPath(actualPath);
+    if (publicPage) {
+      const canonicalPath = getCanonicalPathForPublicPage(publicPage);
+      if (actualPath !== canonicalPath) {
+        const nextUrl = `${canonicalPath}${window.location.search}${window.location.hash}`;
+        window.history.replaceState(null, '', nextUrl);
+      }
+      if (currentPath !== canonicalPath) {
+        setCurrentPath(canonicalPath);
+      }
+      return;
+    }
+
+    if (!authReady) return;
+    const desiredPath = user ? getUserHomePath(user.uid) : LOGIN_ROUTE_PATH;
+
+    if (actualPath !== desiredPath) {
+      const nextUrl = `${desiredPath}${window.location.search}${window.location.hash}`;
+      window.history.replaceState(null, '', nextUrl);
+    }
+    if (currentPath !== desiredPath) {
+      setCurrentPath(desiredPath);
+    }
+  }, [authReady, user, currentPath]);
 
   // Deep-link support for shared voice (?voice=Name) or shared comparison pair (?compare=A,B)
   useEffect(() => {
@@ -238,6 +334,11 @@ const App: React.FC = () => {
     } else {
       document.documentElement.classList.remove('dark');
     }
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, isDarkMode ? 'dark' : 'light');
+    } catch {
+      // Ignore storage errors
+    }
   }, [isDarkMode]);
 
   // --- Firebase Cloud Sync Effects ---
@@ -268,6 +369,8 @@ const App: React.FC = () => {
       setShowFavoritesDrawer(false);
       setShowMobileSidebar(false);
       setShowPitchChart(false);
+      setShowGoogleDriveModal(false);
+      setShowLoginModal(false);
     }
   }, [user]);
 
@@ -968,6 +1071,7 @@ const App: React.FC = () => {
     showMobileSidebar ||
     showLoginModal ||
     showApiKeyModal ||
+    showGoogleDriveModal ||
     Boolean(shareTargets) ||
     Boolean(editingCharacterVoice) ||
     Boolean(aiResult && isAiCardVisible);
@@ -1044,8 +1148,17 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [isAnyModalOpen, viewMode, filteredVoices, activeIndex, handlePlayToggle]);
 
+  const activePublicPage = getPublicInfoPageForPath(currentPath);
+  const isLoginView = !activePublicPage && authReady && !user;
+
   return (
-    <div className="h-screen w-screen cinematic-field text-[#072920] dark:text-[#FAF6EC] font-sans overflow-hidden flex flex-col relative transition-colors duration-500">
+    <div
+      className={`h-screen w-screen cinematic-field text-[#072920] dark:text-[#FAF6EC] font-sans flex flex-col relative transition-colors duration-500 ${
+        isLoginView
+          ? 'overflow-y-auto overflow-x-hidden custom-scrollbar scroll-smooth'
+          : 'overflow-hidden'
+      }`}
+    >
       {/* Single Shared Audio Element */}
       <audio
         ref={audioRef}
@@ -1100,7 +1213,20 @@ const App: React.FC = () => {
         <div className="absolute inset-0 cinematic-vignette" />
       </div>
 
-      {!authReady ? (
+      {activePublicPage ? (
+        <LegalPages
+          page={activePublicPage}
+          isDarkMode={isDarkMode}
+          onToggleTheme={toggleTheme}
+          onBack={() =>
+            navigateToPath(user ? getUserHomePath(user.uid) : LOGIN_ROUTE_PATH)
+          }
+          onNavigatePage={(targetPage) =>
+            navigateToPath(getCanonicalPathForPublicPage(targetPage))
+          }
+          isAuthenticated={Boolean(user)}
+        />
+      ) : !authReady ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-4 relative z-10 px-4">
           <div className="w-14 h-14 rounded-2xl overflow-hidden shadow-xl ring-1 ring-[#B49049]/45 dark:ring-[#C6A259]/40">
             <img
@@ -1117,6 +1243,7 @@ const App: React.FC = () => {
           required={true}
           isDarkMode={isDarkMode}
           onToggleTheme={toggleTheme}
+          onNavigatePath={(path) => navigateToPath(path)}
           onClose={() => {}}
         />
       ) : (
@@ -1147,6 +1274,7 @@ const App: React.FC = () => {
           onOpenPitchChart={() => setShowPitchChart(true)}
           onOpenLogin={() => setShowLoginModal(true)}
           onOpenApiKeySettings={() => setShowApiKeyModal(true)}
+          onOpenGoogleDrive={() => setShowGoogleDriveModal(true)}
         />
 
         <main className="flex-1 relative flex flex-col overflow-hidden">
@@ -1193,44 +1321,49 @@ const App: React.FC = () => {
               />
             </div>
           ) : filteredVoices.length > 0 ? (
-            viewMode === 'carousel' ? (
-              <div className="w-full flex-1 flex items-center justify-center pt-14 lg:pt-0 pb-12 lg:pb-8 min-h-0">
-                <Carousel3D
-                  voices={filteredVoices}
-                  activeIndex={activeIndex}
-                  onChange={setActiveIndex}
-                  playingVoice={playingVoice}
-                  onPlayToggle={handlePlayToggle}
-                  favorites={favorites}
-                  onToggleFavorite={toggleFavorite}
-                  compareVoices={compareVoices}
-                  onToggleCompare={handleToggleCompare}
-                  onShare={(voice) => setShareTargets([voice])}
-                  onEditCharacter={(voice) => setEditingCharacterVoice(voice)}
-                  visualizerVariant={visualizerVariant}
-                  analyserNode={analyserNode}
-                  disabled={isModalOpen}
-                />
-              </div>
-            ) : (
-              <div className="flex-1 overflow-hidden">
-                <GridView
-                  voices={filteredVoices}
-                  activeIndex={activeIndex}
-                  onSelectIndex={setActiveIndex}
-                  playingVoice={playingVoice}
-                  onPlayToggle={handlePlayToggle}
-                  favorites={favorites}
-                  onToggleFavorite={toggleFavorite}
-                  compareVoices={compareVoices}
-                  onToggleCompare={handleToggleCompare}
-                  onShare={(voice) => setShareTargets([voice])}
-                  onEditCharacter={(voice) => setEditingCharacterVoice(voice)}
-                  visualizerVariant={visualizerVariant}
-                  analyserNode={analyserNode}
-                />
-              </div>
-            )
+            (() => {
+              const filterKey = `${filters.gender}|${filters.pitch}|${filters.pitchHzRange[0]}-${filters.pitchHzRange[1]}|${filters.search}|${filters.favoritesOnly ? 'fav' : 'all'}|${aiResult ? aiResult.voiceNames.join(',') : ''}`;
+              return viewMode === 'carousel' ? (
+                <div className="w-full flex-1 flex items-center justify-center pt-14 lg:pt-0 pb-12 lg:pb-8 min-h-0">
+                  <Carousel3D
+                    voices={filteredVoices}
+                    activeIndex={activeIndex}
+                    onChange={setActiveIndex}
+                    playingVoice={playingVoice}
+                    onPlayToggle={handlePlayToggle}
+                    favorites={favorites}
+                    onToggleFavorite={toggleFavorite}
+                    compareVoices={compareVoices}
+                    onToggleCompare={handleToggleCompare}
+                    onShare={(voice) => setShareTargets([voice])}
+                    onEditCharacter={(voice) => setEditingCharacterVoice(voice)}
+                    visualizerVariant={visualizerVariant}
+                    analyserNode={analyserNode}
+                    disabled={isModalOpen}
+                    filterKey={filterKey}
+                  />
+                </div>
+              ) : (
+                <div className="flex-1 overflow-hidden">
+                  <GridView
+                    voices={filteredVoices}
+                    activeIndex={activeIndex}
+                    onSelectIndex={setActiveIndex}
+                    playingVoice={playingVoice}
+                    onPlayToggle={handlePlayToggle}
+                    favorites={favorites}
+                    onToggleFavorite={toggleFavorite}
+                    compareVoices={compareVoices}
+                    onToggleCompare={handleToggleCompare}
+                    onShare={(voice) => setShareTargets([voice])}
+                    onEditCharacter={(voice) => setEditingCharacterVoice(voice)}
+                    visualizerVariant={visualizerVariant}
+                    analyserNode={analyserNode}
+                    filterKey={filterKey}
+                  />
+                </div>
+              );
+            })()
           ) : (
             <div className="w-full h-full flex items-center justify-center pb-24 px-4">
               <div className="text-center animate-fade-in max-w-md">
@@ -1307,11 +1440,11 @@ const App: React.FC = () => {
                 isVisualizerOpen ? 'bottom-16 sm:bottom-20' : 'bottom-6'
               }`}
             >
-              <div className="text-[11px] text-[#3D5F53] dark:text-[#C6A259] font-medium tracking-[0.14em] bg-[#FAF6EC]/85 dark:bg-[#06231B]/82 backdrop-blur-md inline-flex items-center gap-3.5 px-4 py-1.5 rounded-full border border-[#D9CEB8]/80 dark:border-[#C6A259]/25 luminous-hairline">
+              <div className="text-[11px] text-[#3D5F53] dark:text-[#FAF6EC] font-medium tracking-[0.14em] bg-[#FAF6EC]/85 dark:bg-[#06231B]/90 backdrop-blur-xl inline-flex items-center gap-3.5 px-4 py-1.5 rounded-full border border-[#D9CEB8]/80 dark:border-[#C6A259]/30 luminous-hairline">
                 <span className="font-mono tabular-nums uppercase text-[#072920] dark:text-[#EAD7A4]">
                   {String(activeIndex + 1).padStart(2, '0')} / {String(filteredVoices.length).padStart(2, '0')}
                 </span>
-                <span className="hidden lg:inline text-[#B49049]/50 dark:text-[#C6A259]/35">|</span>
+                <span className="hidden lg:inline text-[#B49049]/50 dark:text-[#C6A259]/40">|</span>
                 <span className="hidden lg:inline-flex items-center gap-2 text-[11px] tracking-normal text-[#3D5F53] dark:text-[#9EB5AC]">
                   <span>
                     {viewMode === 'carousel' ? '← →' : '↑ ↓ ← →'}{' '}
@@ -1319,11 +1452,11 @@ const App: React.FC = () => {
                   </span>
                   {viewMode === 'carousel' && (
                     <>
-                      <span className="text-[#B49049]/50 dark:text-[#C6A259]/35">·</span>
+                      <span className="text-[#B49049]/50 dark:text-[#C6A259]/40">·</span>
                       <span>{t.shortcutWheel}</span>
                     </>
                   )}
-                  <span className="text-[#B49049]/50 dark:text-[#C6A259]/35">·</span>
+                  <span className="text-[#B49049]/50 dark:text-[#C6A259]/40">·</span>
                   <span>Space {t.shortcutPlayPause}</span>
                 </span>
               </div>
@@ -1366,6 +1499,7 @@ const App: React.FC = () => {
         isVisualizerOpen={isVisualizerOpen}
         onToggleVisualizer={() => setIsVisualizerOpen((prev) => !prev)}
         onOpenPitchChart={() => setShowPitchChart(true)}
+        onOpenGoogleDrive={() => setShowGoogleDriveModal(true)}
       />
 
       {/* Favorites Slide-over Drawer */}
@@ -1395,6 +1529,10 @@ const App: React.FC = () => {
           setShowFavoritesDrawer(false);
           setShareTargets([voice]);
         }}
+        onOpenGoogleDrive={() => {
+          setShowFavoritesDrawer(false);
+          setShowGoogleDriveModal(true);
+        }}
       />
 
       <PitchDistributionModal
@@ -1405,7 +1543,16 @@ const App: React.FC = () => {
         isDarkMode={isDarkMode}
       />
 
-      <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} />
+      <LoginModal
+        isOpen={showLoginModal}
+        isDarkMode={isDarkMode}
+        onToggleTheme={toggleTheme}
+        onNavigatePath={(path) => {
+          setShowLoginModal(false);
+          navigateToPath(path);
+        }}
+        onClose={() => setShowLoginModal(false)}
+      />
 
       <ApiKeyModal
         isOpen={showApiKeyModal}
@@ -1429,6 +1576,29 @@ const App: React.FC = () => {
         onSave={handleSaveCharacterProfile}
         onStopMainPlayback={() => setPlayingVoice(null)}
         onClose={() => setEditingCharacterVoice(null)}
+      />
+
+      <GoogleDriveModal
+        isOpen={showGoogleDriveModal}
+        onClose={() => setShowGoogleDriveModal(false)}
+        favoriteVoices={favoriteVoices}
+        activeVoice={activeVisualizerVoice}
+        onApplyScriptToVoice={(voiceName, transcriptText) =>
+          handleSaveCharacterProfile(voiceName, burmeseNameMap[voiceName] ?? null, transcriptText)
+        }
+        onImportFavorites={(voiceNames) => {
+          const validToImport = voiceNames.filter(
+            (name) => VALID_VOICE_NAMES.has(name) && !favoritesRef.current.includes(name)
+          );
+          if (validToImport.length > 0) {
+            setFavorites((prev) => Array.from(new Set([...validToImport, ...prev])));
+            if (user) {
+              void seedFavoritesInFirestore(user.uid, validToImport).catch(reportFirestoreError);
+            }
+          }
+          return validToImport.length;
+        }}
+        onApplyCharacterProfile={handleSaveCharacterProfile}
       />
 
       {/* Modals are rendered outside the aria-hidden container */}

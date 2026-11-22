@@ -73,7 +73,7 @@ const VoiceCard = React.forwardRef<HTMLDivElement, VoiceCardProps>(({
     <div
       ref={ref}
       data-voice-card="true"
-      className={`group relative bg-[#FAF6EC]/95 dark:bg-[#092E24]/92 border luminous-hairline transition-all duration-200 flex flex-col sm:flex-row min-h-[268px] sm:min-h-[136px] h-auto cursor-pointer rounded-2xl overflow-hidden focus:outline-none ${
+      className={`group relative bg-[#FAF6EC]/95 dark:bg-[#092E24]/95 border luminous-hairline transition-all duration-200 flex flex-col sm:flex-row min-h-[268px] sm:min-h-[136px] h-auto cursor-pointer rounded-2xl overflow-hidden focus:outline-none ${
         isPlaying
           ? 'luxury-active-bloom border-[#B49049] dark:border-[#DFC589]/70 ring-1 ring-[#C6A259]/35'
           : isSelected
@@ -92,7 +92,7 @@ const VoiceCard = React.forwardRef<HTMLDivElement, VoiceCardProps>(({
       aria-label={`${isPlaying ? t.pauseSample : t.playSample}: ${displayName}`}
     >
       {/* Visualizer / Action Area - Left Side */}
-      <div className="relative h-36 sm:h-full w-full sm:w-28 bg-[#041813] shrink-0 border-b sm:border-b-0 sm:border-r border-[#D9CEB8]/80 dark:border-[#C6A259]/18 flex items-center justify-center overflow-hidden group/thumb">
+      <div className="relative h-36 sm:h-full w-full sm:w-28 bg-[#041813] shrink-0 border-b sm:border-b-0 sm:border-r border-[#D9CEB8]/80 dark:border-[#C6A259]/20 flex items-center justify-center overflow-hidden group/thumb">
         {/* Subtle Gold Hairline Accent when Speaking */}
         {isPlaying && (
           <div className="absolute top-0 inset-x-0 h-[2px] z-30 bg-gradient-to-r from-[#9C7A3C] via-[#EAD7A4] to-[#9C7A3C]" />

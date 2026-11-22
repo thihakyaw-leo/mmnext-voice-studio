@@ -22,12 +22,24 @@ import {
   LogIn,
   Share2,
   Pencil,
+  HardDrive,
+  Check,
+  ExternalLink,
 } from 'lucide-react';
 import { Voice } from '../types';
 import { useI18n } from '../i18n';
 import AudioVisualizer, { VisualizerVariant } from './AudioVisualizer';
 import { useFirebase } from './FirebaseProvider';
-import { getGeminiApiKeyHeaders, notifyGeminiQuotaUpdated } from '../firebase';
+import {
+  getGeminiApiKeyHeaders,
+  getGoogleDriveAccessToken,
+  notifyGeminiQuotaUpdated,
+} from '../firebase';
+import {
+  DriveAuthError,
+  DriveFileRecord,
+  uploadFileToGoogleDrive,
+} from '../utils/googleDrive';
 import { beginTrackedApiRequest, endTrackedApiRequest } from '../utils/networkStatus';
 
 interface FavoritesDrawerProps {
@@ -51,6 +63,7 @@ interface FavoritesDrawerProps {
   hasCustomCharacterProfiles?: boolean;
   onEditCharacter?: (voice: Voice) => void;
   onOpenLogin: () => void;
+  onOpenGoogleDrive?: () => void;
   onShare?: (voice: Voice) => void;
 }
 
@@ -75,19 +88,30 @@ const FavoritesDrawer: React.FC<FavoritesDrawerProps> = ({
   hasCustomCharacterProfiles = false,
   onEditCharacter,
   onOpenLogin,
+  onOpenGoogleDrive,
   onShare,
 }) => {
   const { t, language, translateGender, translatePitch } = useI18n();
-  const { user, cloudSynced } = useFirebase();
+  const {
+    user,
+    cloudSynced,
+    driveConnected,
+    driveBusy,
+    connectGoogleDrive,
+    disconnectGoogleDrive,
+  } = useFirebase();
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [isDownloadingAllZip, setIsDownloadingAllZip] = useState(false);
   const [zipError, setZipError] = useState<string | null>(null);
+  const [savingDriveMode, setSavingDriveMode] = useState<'json' | 'zip' | null>(null);
+  const [savedDriveRecord, setSavedDriveRecord] = useState<DriveFileRecord | null>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isOpen) {
       setConfirmingClear(false);
       setZipError(null);
+      setSavedDriveRecord(null);
       return;
     }
 
@@ -132,7 +156,7 @@ const FavoritesDrawer: React.FC<FavoritesDrawerProps> = ({
     if (favoriteVoices.length === 0) return;
 
     const payload = {
-      app: 'MMNext Voice Studio',
+      app: 'MMNext Studio',
       exportedAt: new Date().toISOString(),
       count: favoriteVoices.length,
       favorites: favoriteVoices.map((voice) => ({
@@ -208,6 +232,91 @@ const FavoritesDrawer: React.FC<FavoritesDrawerProps> = ({
     }
   };
 
+  const handleSaveFavoritesToDrive = async (mode: 'json' | 'zip') => {
+    if (favoriteVoices.length === 0 || savingDriveMode) return;
+    setZipError(null);
+    setSavedDriveRecord(null);
+
+    let token = getGoogleDriveAccessToken();
+    if (!token) {
+      token = await connectGoogleDrive();
+    }
+    if (!token) return;
+
+    setSavingDriveMode(mode);
+    const reqId = beginTrackedApiRequest();
+    const startedAt = performance.now();
+    try {
+      const dateStamp = new Date().toISOString().slice(0, 10);
+      let record: DriveFileRecord;
+
+      if (mode === 'json') {
+        const payload = {
+          app: 'MMNext Studio',
+          exportedAt: new Date().toISOString(),
+          count: favoriteVoices.length,
+          favorites: favoriteVoices.map((voice) => ({
+            id: voice.name,
+            characterName: voice.characterName ?? null,
+            transcript: voice.transcript ?? null,
+            gender: voice.analysis.gender,
+            pitch: voice.pitch,
+            analysisPitch: voice.analysis.pitch,
+            characteristics: voice.analysis.characteristics,
+          })),
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], {
+          type: 'application/json',
+        });
+        record = await uploadFileToGoogleDrive(token, {
+          fileName: `mmnext-voice-favorites-${dateStamp}.json`,
+          mimeType: 'application/json',
+          blob,
+          description: `MMNext Studio favorites backup (${favoriteVoices.length} voices)`,
+        });
+      } else {
+        const authHeaders = await getGeminiApiKeyHeaders();
+        const response = await fetch('/api/favorites-zip', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          body: JSON.stringify({
+            voiceNames: favoriteVoices.map((v) => v.name),
+          }),
+        });
+        endTrackedApiRequest(reqId, performance.now() - startedAt, response.ok);
+        notifyGeminiQuotaUpdated();
+
+        if (!response.ok) {
+          const errBody = await response.json().catch(() => ({}));
+          throw new Error(errBody.error || t.downloadZipFailedError);
+        }
+
+        const zipBlob = await response.blob();
+        record = await uploadFileToGoogleDrive(token, {
+          fileName: `mmnext-favorites-audio-${dateStamp}.zip`,
+          mimeType: 'application/zip',
+          blob: zipBlob,
+          description: `MMNext Studio favorite WAV samples (${favoriteVoices.length} voices)`,
+        });
+      }
+      setSavedDriveRecord(record);
+    } catch (err: any) {
+      endTrackedApiRequest(reqId, performance.now() - startedAt, false);
+      if (err instanceof DriveAuthError) {
+        disconnectGoogleDrive();
+        setZipError(t.driveTokenExpiredNotice);
+      } else {
+        setZipError(
+          typeof err?.message === 'string' && err.message.trim()
+            ? err.message
+            : t.driveSaveFailedError
+        );
+      }
+    } finally {
+      setSavingDriveMode(null);
+    }
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -235,7 +344,7 @@ const FavoritesDrawer: React.FC<FavoritesDrawerProps> = ({
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-            className="relative w-full max-w-md h-full bg-[#FAF6EC]/96 dark:bg-[#06231B]/96 backdrop-blur-2xl border-l border-[#D9CEB8] dark:border-[#C6A259]/25 shadow-2xl flex flex-col outline-none"
+            className="relative w-full max-w-md h-full bg-[#FAF6EC]/95 dark:bg-[#06231B]/95 backdrop-blur-2xl border-l border-[#D9CEB8] dark:border-[#C6A259]/25 shadow-2xl flex flex-col outline-none"
           >
             {/* Header */}
             <div className="px-6 py-5 border-b border-[#D9CEB8]/80 dark:border-[#C6A259]/20 flex items-center justify-between shrink-0">
@@ -293,7 +402,7 @@ const FavoritesDrawer: React.FC<FavoritesDrawerProps> = ({
 
             {/* Action Bar */}
             {favoriteVoices.length > 0 && (
-              <div className="px-6 py-3 bg-[#F4EDE0]/85 dark:bg-[#041813]/65 border-b border-[#D9CEB8]/80 dark:border-[#C6A259]/18 space-y-2 shrink-0">
+              <div className="px-6 py-3 bg-[#F4EDE0]/85 dark:bg-[#041813]/65 border-b border-[#D9CEB8]/80 dark:border-[#C6A259]/20 space-y-2 shrink-0">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <button
@@ -370,6 +479,96 @@ const FavoritesDrawer: React.FC<FavoritesDrawerProps> = ({
                     </div>
                   )}
                 </div>
+
+                {/* Google Drive Save Row */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#D9CEB8]/70 dark:border-[#C6A259]/15">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {!driveConnected ? (
+                      <button
+                        type="button"
+                        onClick={() => void connectGoogleDrive()}
+                        disabled={driveBusy}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-[#F7F7F7] dark:bg-[#FAF6EC] dark:hover:bg-[#EFE6D2] text-[#1F1F1F] border border-[#747775]/40 transition-all shadow-xs disabled:opacity-60"
+                      >
+                        {driveBusy ? (
+                          <Loader2 size={12} className="animate-spin text-[#0D3A2E]" />
+                        ) : (
+                          <HardDrive size={12} className="text-[#0D3A2E]" />
+                        )}
+                        <span>{driveBusy ? t.connectingGoogleDrive : t.connectGoogleDrive}</span>
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => void handleSaveFavoritesToDrive('json')}
+                          disabled={savingDriveMode !== null}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[#FAF6EC]/90 dark:bg-[#092E24] border border-[#D9CEB8] dark:border-[#C6A259]/25 text-[#06231B] dark:text-[#EAD7A4] hover:bg-[#EBE2CE] dark:hover:bg-[#114637] transition-colors disabled:opacity-50"
+                        >
+                          {savingDriveMode === 'json' ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            <HardDrive size={12} />
+                          )}
+                          <span>
+                            {savingDriveMode === 'json' ? t.savingToDrive : t.saveFavoritesJsonToDrive}
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => void handleSaveFavoritesToDrive('zip')}
+                          disabled={savingDriveMode !== null}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-[#E9F3EE] dark:bg-[#114637] border border-[#236D56]/35 dark:border-[#C6A259]/40 text-[#114637] dark:text-[#DFC589] hover:bg-[#DCECE4] dark:hover:bg-[#195E4A] transition-colors disabled:opacity-50"
+                        >
+                          {savingDriveMode === 'zip' ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            <HardDrive size={12} />
+                          )}
+                          <span>
+                            {savingDriveMode === 'zip' ? t.savingToDrive : t.saveFavoritesZipToDrive}
+                          </span>
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  {onOpenGoogleDrive && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenGoogleDrive();
+                      }}
+                      className="text-[11px] font-medium text-[#7D602D] dark:text-[#DFC589] hover:underline whitespace-nowrap"
+                    >
+                      {t.googleDrive}
+                    </button>
+                  )}
+                </div>
+
+                {savedDriveRecord && (
+                  <div className="px-3 py-2 rounded-lg bg-[#E9F3EE] dark:bg-[#0D3A2E]/85 border border-[#236D56]/30 dark:border-[#C6A259]/35 text-[#114637] dark:text-[#EAD7A4] text-xs flex flex-wrap items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 min-w-0">
+                      <Check size={13} className="text-[#2E8267] dark:text-[#DFC589] shrink-0" />
+                      <span className="truncate font-medium">
+                        {t.savedToDriveNotice}: {savedDriveRecord.name}
+                      </span>
+                    </span>
+                    {savedDriveRecord.webViewLink && (
+                      <a
+                        href={savedDriveRecord.webViewLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 font-semibold underline decoration-[#B49049]/60 hover:text-[#06231B] dark:hover:text-[#FAF6EC] shrink-0"
+                      >
+                        <span>{t.openInDrive}</span>
+                        <ExternalLink size={11} />
+                      </a>
+                    )}
+                  </div>
+                )}
 
                 {zipError && (
                   <div className="px-3 py-2 rounded-lg bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex items-center justify-between gap-2">

@@ -8,6 +8,10 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import {
   auth,
   signInWithGooglePopup,
+  connectGoogleDrivePopup,
+  getGoogleDriveAccessToken,
+  clearGoogleDriveAccessToken,
+  subscribeGoogleDriveTokenState,
   signOutFromFirebase,
   ensureUserWorkspace,
   subscribeUserData,
@@ -25,6 +29,9 @@ interface FirebaseContextValue {
   authReady: boolean;
   authBusy: boolean;
   authError: string | null;
+  driveConnected: boolean;
+  driveBusy: boolean;
+  driveError: string | null;
   cloudSynced: boolean;
   cloudFavorites: string[] | null;
   cloudCustomNames: Record<string, BurmeseCharacterName> | null;
@@ -34,6 +41,9 @@ interface FirebaseContextValue {
   dailyQuota: GeminiDailyQuota | null;
   refreshDailyQuota: () => Promise<void>;
   signInWithGoogle: () => Promise<User | null>;
+  connectGoogleDrive: () => Promise<string | null>;
+  disconnectGoogleDrive: () => void;
+  clearDriveError: () => void;
   signOut: () => Promise<void>;
   clearAuthError: () => void;
 }
@@ -48,6 +58,11 @@ export const FirebaseProvider: React.FC<{
   const [authReady, setAuthReady] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [driveConnected, setDriveConnected] = useState<boolean>(() =>
+    Boolean(getGoogleDriveAccessToken())
+  );
+  const [driveBusy, setDriveBusy] = useState(false);
+  const [driveError, setDriveError] = useState<string | null>(null);
   const [cloudSynced, setCloudSynced] = useState(false);
   const [cloudFavorites, setCloudFavorites] = useState<string[] | null>(null);
   const [cloudCustomNames, setCloudCustomNames] = useState<Record<
@@ -96,6 +111,13 @@ export const FirebaseProvider: React.FC<{
   }, []);
 
   useEffect(() => {
+    setDriveConnected(Boolean(getGoogleDriveAccessToken()));
+    return subscribeGoogleDriveTokenState((connected) => {
+      setDriveConnected(connected);
+    });
+  }, []);
+
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
       setFatalError(null);
       setUser(nextUser);
@@ -108,6 +130,7 @@ export const FirebaseProvider: React.FC<{
         setCloudCastingHistory([]);
         setCloudPreferences(null);
         setDailyQuota(null);
+        setDriveError(null);
       }
     });
     return () => unsubscribe();
@@ -212,9 +235,52 @@ export const FirebaseProvider: React.FC<{
     }
   }, []);
 
+  const connectGoogleDrive = useCallback(async () => {
+    setDriveBusy(true);
+    setDriveError(null);
+    try {
+      const { accessToken } = await connectGoogleDrivePopup();
+      return accessToken;
+    } catch (err: unknown) {
+      const code =
+        err && typeof err === 'object' && 'code' in err ? String((err as { code?: unknown }).code) : '';
+      const msg = err instanceof Error ? err.message : 'Google Drive connection failed.';
+
+      if (
+        code === 'auth/popup-closed-by-user' ||
+        code === 'auth/cancelled-popup-request' ||
+        msg.includes('popup-closed-by-user')
+      ) {
+        return null;
+      }
+
+      if (code === 'auth/popup-blocked' || msg.includes('popup-blocked')) {
+        setDriveError('Popup was blocked by your browser. Allow popups to connect Google Drive.');
+      } else if (code === 'auth/unauthorized-domain' || msg.includes('unauthorized-domain')) {
+        const domain = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
+        setDriveError(`Domain "${domain}" is not authorized in Firebase Console > Authentication.`);
+      } else if (code === 'auth/network-request-failed' || msg.includes('network-request-failed')) {
+        setDriveError('Network error while connecting Google Drive. Please try again.');
+      } else {
+        setDriveError(msg);
+      }
+      return null;
+    } finally {
+      setDriveBusy(false);
+    }
+  }, []);
+
+  const disconnectGoogleDrive = useCallback(() => {
+    clearGoogleDriveAccessToken();
+    setDriveError(null);
+  }, []);
+
+  const clearDriveError = useCallback(() => setDriveError(null), []);
+
   const signOut = useCallback(async () => {
     setAuthBusy(true);
     setAuthError(null);
+    setDriveError(null);
     try {
       await signOutFromFirebase();
     } catch (err: unknown) {
@@ -233,6 +299,9 @@ export const FirebaseProvider: React.FC<{
         authReady,
         authBusy,
         authError,
+        driveConnected,
+        driveBusy,
+        driveError,
         cloudSynced,
         cloudFavorites,
         cloudCustomNames,
@@ -242,6 +311,9 @@ export const FirebaseProvider: React.FC<{
         dailyQuota,
         refreshDailyQuota,
         signInWithGoogle,
+        connectGoogleDrive,
+        disconnectGoogleDrive,
+        clearDriveError,
         signOut,
         clearAuthError,
       }}

@@ -1,12 +1,12 @@
 {
   "projectId": "mmnext-saas",
-  "appId": "1:372516832780:web:95da3f7284cbdb58731029",
+  "appId": "1:372516832780:web:105dcbd858ea454f731029",
   "apiKey": "AIzaSyBb2d7et68ZQjsfGCcEl5_4oE89UoZFQkM",
   "authDomain": "mmnext-saas.firebaseapp.com",
   "firestoreDatabaseId": "ai-studio-mmnextvoicestudi-f3d949fe-55a2-404e-ba17-157f2ee9f729",
   "storageBucket": "mmnext-saas.firebasestorage.app",
   "messagingSenderId": "372516832780",
-  "measurementId": "G-XXXXXXXXXX",
-  "oAuthClientId": "372516832780-pk06ubm6pcfp11gt48d4f5beh4d9fk68.apps.googleusercontent.com",
+  "measurementId": "G-C5TR8WLLVZ",
+  "oAuthClientId": "",
   "recaptchaSiteKey": ""
 }

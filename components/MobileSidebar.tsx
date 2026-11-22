@@ -21,6 +21,7 @@ import {
   LogOut,
   Loader2,
   Check,
+  HardDrive,
 } from 'lucide-react';
 import { FilterState } from '../types';
 import { useI18n } from '../i18n';
@@ -45,6 +46,7 @@ interface MobileSidebarProps {
   isVisualizerOpen: boolean;
   onToggleVisualizer: () => void;
   onOpenPitchChart: () => void;
+  onOpenGoogleDrive: () => void;
 }
 
 const MobileSidebar: React.FC<MobileSidebarProps> = ({
@@ -65,10 +67,20 @@ const MobileSidebar: React.FC<MobileSidebarProps> = ({
   isVisualizerOpen,
   onToggleVisualizer,
   onOpenPitchChart,
+  onOpenGoogleDrive,
 }) => {
   const { language, setLanguage, t, translateGender, translatePitch } = useI18n();
-  const { user, authBusy, authError, cloudSynced, dailyQuota, signInWithGoogle, signOut, clearAuthError } =
-    useFirebase();
+  const {
+    user,
+    authBusy,
+    authError,
+    driveConnected,
+    cloudSynced,
+    dailyQuota,
+    signInWithGoogle,
+    signOut,
+    clearAuthError,
+  } = useFirebase();
   const sidebarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -146,7 +158,7 @@ const MobileSidebar: React.FC<MobileSidebarProps> = ({
             dragConstraints={{ left: -320, right: 0 }}
             dragElastic={{ left: 0.1, right: 0 }}
             onDragEnd={handleDragEnd}
-            className="relative w-[84vw] max-w-[320px] h-full bg-[#FAF6EC]/96 dark:bg-[#06231B]/96 backdrop-blur-2xl border-r border-[#D9CEB8] dark:border-[#C6A259]/25 shadow-2xl flex flex-col outline-none"
+            className="relative w-[84vw] max-w-[320px] h-full bg-[#FAF6EC]/95 dark:bg-[#06231B]/95 backdrop-blur-2xl border-r border-[#D9CEB8] dark:border-[#C6A259]/25 shadow-2xl flex flex-col outline-none"
           >
             {/* Header */}
             <div className="px-5 py-4 border-b border-[#D9CEB8]/80 dark:border-[#C6A259]/20 flex items-center justify-between shrink-0">
@@ -504,6 +516,29 @@ const MobileSidebar: React.FC<MobileSidebarProps> = ({
                         </span>
                       </div>
                     )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenGoogleDrive();
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-[#F4EDE0] dark:bg-[#06231B] border border-[#D9CEB8] dark:border-[#C6A259]/25 text-[#06231B] dark:text-[#EAD7A4] hover:bg-[#EBE2CE] dark:hover:bg-[#114637] text-xs font-medium transition-colors"
+                    >
+                      <span className="inline-flex items-center gap-1.5">
+                        <HardDrive size={13} className="text-[#7D602D] dark:text-[#DFC589]" />
+                        <span>{t.googleDrive}</span>
+                      </span>
+                      <span
+                        className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                          driveConnected
+                            ? 'bg-[#E9F3EE] dark:bg-[#145240] text-[#114637] dark:text-[#5FA88E]'
+                            : 'text-[#5B7469] dark:text-[#9EB5AC]'
+                        }`}
+                      >
+                        {driveConnected ? t.driveConnected : t.connectGoogleDrive}
+                      </span>
+                    </button>
 
                     <button
                       type="button"

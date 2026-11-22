@@ -235,11 +235,55 @@ export interface TranslationDict {
   quotaRemainingShort: (remaining: number, limit: number) => string;
   dailyQuotaTooltip: (userRem: number, userLim: number, globalRem: number, globalLim: number) => string;
   dailyQuotaExhaustedBanner: string;
+  googleDrive: string;
+  connectGoogleDrive: string;
+  reconnectGoogleDrive: string;
+  disconnectGoogleDrive: string;
+  driveConnected: string;
+  connectingGoogleDrive: string;
+  driveVaultTitle: string;
+  driveVaultSubtitle: string;
+  driveFolderBadge: string;
+  saveToGoogleDrive: string;
+  savingToDrive: string;
+  savedToDriveNotice: string;
+  openInDrive: string;
+  driveFilesTitle: string;
+  driveEmptyTitle: string;
+  driveEmptyHint: string;
+  driveRefresh: string;
+  driveDeleteFile: string;
+  driveDeleteConfirmTitle: string;
+  driveDeleteConfirmBody: (fileName: string) => string;
+  driveConfirmDeleteBtn: string;
+  driveConnectPrompt: string;
+  driveTokenExpiredNotice: string;
+  saveProfileJsonToDrive: string;
+  saveProfileTxtToDrive: string;
+  saveAudioWavToDrive: string;
+  saveFavoritesJsonToDrive: string;
+  saveFavoritesZipToDrive: string;
+  driveSaveFailedError: string;
+  pickFromGoogleDrive: string;
+  openingGooglePicker: string;
+  pickerSelectedTitle: string;
+  pickerLoadingPreview: string;
+  pickerApplyScriptToVoice: (voiceLabel: string) => string;
+  pickerScriptAppliedNotice: (voiceLabel: string) => string;
+  pickerImportFavorites: (count: number) => string;
+  pickerFavoritesImportedNotice: (count: number) => string;
+  pickerApplyProfile: (voiceLabel: string) => string;
+  pickerProfileAppliedNotice: (voiceLabel: string) => string;
+  pickerPickScriptBtn: string;
+  pickerLoadBriefBtn: string;
+  pickerUnsupportedFileNotice: string;
+  pickerAudioPreviewLabel: string;
+  pickerEmptyTextNotice: string;
 }
 
 const TRANSLATIONS: Record<Language, TranslationDict> = {
   en: {
-    appTitle: 'MMNext Voice Studio',
+    appTitle: 'MMNext Studio',
     aiCastingDirector: 'AI Casting Director',
     aiCastingShort: 'Casting',
     searchPlaceholder: 'Search...',
@@ -435,7 +479,7 @@ const TRANSLATIONS: Record<Language, TranslationDict> = {
     favoritesDrawerSyncedSubtitle: 'Synced automatically with your Google account',
     recentCloudCastings: 'Recent Cloud Castings',
     deleteCasting: 'Delete casting',
-    loginTitle: 'Sign in to MMNext Voice Studio',
+    loginTitle: 'Sign in to MMNext Studio',
     loginSubtitle: 'Connect your Google account to back up and sync your workspace across devices.',
     continueWithGoogle: 'Continue with Google',
     continueAsGuest: 'Continue as Guest',
@@ -470,9 +514,54 @@ const TRANSLATIONS: Record<Language, TranslationDict> = {
       `Your daily free AI/TTS quota: ${userRem}/${userLim} left · Studio pool: ${globalRem}/${globalLim} left (resets midnight PT)`,
     dailyQuotaExhaustedBanner:
       'Daily free Gemini limit reached. Cached voice samples still play; live AI Casting & new TTS reset at midnight PT.',
+    googleDrive: 'Google Drive',
+    connectGoogleDrive: 'Connect Google Drive',
+    reconnectGoogleDrive: 'Reconnect Drive',
+    disconnectGoogleDrive: 'Disconnect Drive',
+    driveConnected: 'Drive Connected',
+    connectingGoogleDrive: 'Connecting Drive...',
+    driveVaultTitle: 'Google Drive Storage',
+    driveVaultSubtitle: 'Save voice profiles, favorites backups, and generated WAV audio directly to your own Google Drive.',
+    driveFolderBadge: 'Folder: MMNext Studio',
+    saveToGoogleDrive: 'Save to Google Drive',
+    savingToDrive: 'Saving to Drive...',
+    savedToDriveNotice: 'Saved to Google Drive',
+    openInDrive: 'Open in Drive',
+    driveFilesTitle: 'Saved Files in Your Drive',
+    driveEmptyTitle: 'No saved files in your Drive yet',
+    driveEmptyHint: 'Save favorites backups, character profiles, or generated WAV audio to store them inside your MMNext Studio folder.',
+    driveRefresh: 'Refresh files',
+    driveDeleteFile: 'Delete from Drive',
+    driveDeleteConfirmTitle: 'Delete file from Google Drive?',
+    driveDeleteConfirmBody: (fileName: string) =>
+      `Are you sure you want to permanently delete "${fileName}" from your Google Drive?`,
+    driveConfirmDeleteBtn: 'Delete File',
+    driveConnectPrompt: 'Authorize access to your Google Drive "MMNext Studio" folder to save and manage your voice files.',
+    driveTokenExpiredNotice: 'Your Google Drive session expired. Please reconnect Google Drive to continue.',
+    saveProfileJsonToDrive: 'JSON to Drive',
+    saveProfileTxtToDrive: 'TXT to Drive',
+    saveAudioWavToDrive: 'Save WAV to Drive',
+    saveFavoritesJsonToDrive: 'Save JSON to Drive',
+    saveFavoritesZipToDrive: 'Save Audio ZIP to Drive',
+    driveSaveFailedError: 'Failed to save to Google Drive. Please try again.',
+    pickFromGoogleDrive: 'Pick from Drive',
+    openingGooglePicker: 'Opening Picker...',
+    pickerSelectedTitle: 'Selected via Google Picker',
+    pickerLoadingPreview: 'Reading file from Google Drive...',
+    pickerApplyScriptToVoice: (voiceLabel: string) => `Apply Script to ${voiceLabel}`,
+    pickerScriptAppliedNotice: (voiceLabel: string) => `Script applied to ${voiceLabel} TTS transcript.`,
+    pickerImportFavorites: (count: number) => `Import ${count} Favorite${count === 1 ? '' : 's'}`,
+    pickerFavoritesImportedNotice: (count: number) => `Imported ${count} voice${count === 1 ? '' : 's'} into Favorites.`,
+    pickerApplyProfile: (voiceLabel: string) => `Apply Profile to ${voiceLabel}`,
+    pickerProfileAppliedNotice: (voiceLabel: string) => `Character profile applied to ${voiceLabel}.`,
+    pickerPickScriptBtn: 'Pick from Drive',
+    pickerLoadBriefBtn: 'Pick Brief from Drive',
+    pickerUnsupportedFileNotice: 'Binary file selected — download or open in Drive to view.',
+    pickerAudioPreviewLabel: 'Audio Preview',
+    pickerEmptyTextNotice: 'The selected file has no readable text.',
   },
   mm: {
-    appTitle: 'MMNext Voice Studio',
+    appTitle: 'MMNext Studio',
     aiCastingDirector: 'AI အသံရွေးချယ်သူ',
     aiCastingShort: 'ရွေးချယ်ရန်',
     searchPlaceholder: 'ရှာဖွေရန်...',
@@ -668,7 +757,7 @@ const TRANSLATIONS: Record<Language, TranslationDict> = {
     favoritesDrawerSyncedSubtitle: 'သင့် Google အကောင့်နှင့် အလိုအလျောက် ချိတ်ဆက်ထားသည်',
     recentCloudCastings: 'မကြာသေးမီက Cloud ရွေးချယ်မှုများ',
     deleteCasting: 'မှတ်တမ်းဖျက်ရန်',
-    loginTitle: 'MMNext Voice Studio သို့ ဝင်ရောက်ရန်',
+    loginTitle: 'MMNext Studio သို့ ဝင်ရောက်ရန်',
     loginSubtitle: 'သင့် Google အကောင့်နှင့် ချိတ်ဆက်ပြီး စက်ပစ္စည်းများအကြား ဒေတာများကို သိမ်းဆည်းပါ။',
     continueWithGoogle: 'Google ဖြင့် ဆက်လက်ဝင်ရောက်မည်',
     continueAsGuest: 'ဧည့်သည်အဖြစ် ဆက်သုံးမည်',
@@ -703,6 +792,51 @@ const TRANSLATIONS: Record<Language, TranslationDict> = {
       `သင့်နေ့စဉ် AI/TTS အခမဲ့ခွင့်ပြုချက် - ${userRem}/${userLim} ကျန် · Studio စုစုပေါင်း - ${globalRem}/${globalLim} ကျန် (Midnight PT တွင် ပြန်လည်စတင်သည်)`,
     dailyQuotaExhaustedBanner:
       'ယနေ့အတွက် Gemini အခမဲ့ကန့်သတ်ချက် ပြည့်သွားပါပြီ။ Cache ရှိပြီးသားအသံများကို ဆက်နားထောင်နိုင်ပြီး AI/TTS အသစ်များကို Midnight PT တွင် ပြန်သုံးနိုင်ပါမည်။',
+    googleDrive: 'Google Drive',
+    connectGoogleDrive: 'Google Drive ချိတ်ဆက်မည်',
+    reconnectGoogleDrive: 'Drive ပြန်ချိတ်ဆက်မည်',
+    disconnectGoogleDrive: 'Drive ဖြုတ်မည်',
+    driveConnected: 'Drive ချိတ်ဆက်ပြီး',
+    connectingGoogleDrive: 'Drive ချိတ်ဆက်နေသည်...',
+    driveVaultTitle: 'Google Drive သိုလှောင်မှု',
+    driveVaultSubtitle: 'Character Profile များ၊ အနှစ်သက်ဆုံးစာရင်းနှင့် WAV အသံဖိုင်များကို သင့် Google Drive ထဲသို့ တိုက်ရိုက်သိမ်းဆည်းပါ။',
+    driveFolderBadge: 'ဖိုင်တွဲ - MMNext Studio',
+    saveToGoogleDrive: 'Google Drive သို့ သိမ်းမည်',
+    savingToDrive: 'Drive သို့ သိမ်းနေသည်...',
+    savedToDriveNotice: 'Google Drive တွင် သိမ်းဆည်းပြီး',
+    openInDrive: 'Drive တွင် ဖွင့်မည်',
+    driveFilesTitle: 'သင့် Drive ထဲရှိ သိမ်းဆည်းထားသော ဖိုင်များ',
+    driveEmptyTitle: 'Drive ထဲတွင် သိမ်းထားသော ဖိုင် မရှိသေးပါ',
+    driveEmptyHint: 'အနှစ်သက်ဆုံး Backup များ၊ Character Profile များ သို့မဟုတ် WAV အသံဖိုင်များကို MMNext Studio ဖိုင်တွဲထဲသို့ သိမ်းဆည်းနိုင်ပါသည်။',
+    driveRefresh: 'စာရင်းပြန်စစ်မည်',
+    driveDeleteFile: 'Drive မှ ဖျက်မည်',
+    driveDeleteConfirmTitle: 'Google Drive မှ ဖိုင်ဖျက်မည်လား?',
+    driveDeleteConfirmBody: (fileName: string) =>
+      `"${fileName}" ကို သင့် Google Drive မှ အပြီးတိုင် ဖျက်ပစ်ရန် သေချာပါသလား?`,
+    driveConfirmDeleteBtn: 'ဖိုင်ဖျက်မည်',
+    driveConnectPrompt: 'သင့်ကိုယ်ပိုင် Google Drive ထဲရှိ "MMNext Studio" ဖိုင်တွဲသို့ အသံဖိုင်များ သိမ်းဆည်းစီမံရန် ခွင့်ပြုချက်ပေးပါ။',
+    driveTokenExpiredNotice: 'Google Drive ချိတ်ဆက်မှု သက်တမ်းကုန်သွားပါသည်။ ဆက်လက်သိမ်းဆည်းရန် ပြန်လည်ချိတ်ဆက်ပါ။',
+    saveProfileJsonToDrive: 'JSON -> Drive',
+    saveProfileTxtToDrive: 'TXT -> Drive',
+    saveAudioWavToDrive: 'WAV -> Drive သိမ်းမည်',
+    saveFavoritesJsonToDrive: 'JSON -> Drive သိမ်းမည်',
+    saveFavoritesZipToDrive: 'Audio ZIP -> Drive',
+    driveSaveFailedError: 'Google Drive သို့ သိမ်းဆည်းမှု မအောင်မြင်ပါ။ ထပ်မံကြိုးစားကြည့်ပါ။',
+    pickFromGoogleDrive: 'Drive မှ ရွေးချယ်မည် (Picker)',
+    openingGooglePicker: 'Picker ဖွင့်နေသည်...',
+    pickerSelectedTitle: 'Google Picker မှ ရွေးချယ်ထားသော ဖိုင်',
+    pickerLoadingPreview: 'Google Drive မှ ဖိုင်အချက်အလက် ဖတ်နေသည်...',
+    pickerApplyScriptToVoice: (voiceLabel: string) => `${voiceLabel} ၏ TTS စာသားအဖြစ် ထည့်မည်`,
+    pickerScriptAppliedNotice: (voiceLabel: string) => `${voiceLabel} ၏ TTS Transcript ထဲသို့ ထည့်သွင်းပြီးပါပြီ။`,
+    pickerImportFavorites: (count: number) => `အနှစ်သက်ဆုံး ${count} ခု ထည့်သွင်းမည်`,
+    pickerFavoritesImportedNotice: (count: number) => `အနှစ်သက်ဆုံးအသံ ${count} ခုကို ထည့်သွင်းပြီးပါပြီ။`,
+    pickerApplyProfile: (voiceLabel: string) => `${voiceLabel} Profile အဖြစ် အသုံးပြုမည်`,
+    pickerProfileAppliedNotice: (voiceLabel: string) => `${voiceLabel} Character Profile ကို အသုံးပြုပြီးပါပြီ။`,
+    pickerPickScriptBtn: 'Drive မှ ရွေးမည်',
+    pickerLoadBriefBtn: 'Drive မှ စာသားရွေးမည်',
+    pickerUnsupportedFileNotice: 'ဤဖိုင်အမျိုးအစားကို တိုက်ရိုက်မဖတ်နိုင်ပါ — ဒေါင်းလုဒ်ဆွဲ၍ သို့မဟုတ် Drive တွင် ဖွင့်ကြည့်နိုင်ပါသည်။',
+    pickerAudioPreviewLabel: 'အသံဖိုင် အစမ်းနားထောင်ရန်',
+    pickerEmptyTextNotice: 'ရွေးချယ်ထားသော ဖိုင်တွင် စာသားမပါရှိပါ။',
   },
 };
 

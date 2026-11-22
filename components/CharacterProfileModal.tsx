@@ -20,6 +20,9 @@ import {
   Volume2,
   Maximize2,
   Eye,
+  HardDrive,
+  ExternalLink,
+  FolderSearch,
 } from 'lucide-react';
 import { Voice } from '../types';
 import { BurmeseCharacterName } from '../burmeseNames';
@@ -30,8 +33,18 @@ import {
   MAX_BURMESE_NAME_LENGTH,
   MAX_CHARACTER_TRANSCRIPT_LENGTH,
   getGeminiApiKeyHeaders,
+  getGoogleDriveAccessToken,
   notifyGeminiQuotaUpdated,
 } from '../firebase';
+import { useFirebase } from './FirebaseProvider';
+import {
+  DriveAuthError,
+  DriveFileRecord,
+  parseStudioDriveImport,
+  readPickedDriveFileContent,
+  uploadFileToGoogleDrive,
+} from '../utils/googleDrive';
+import { openGoogleDrivePicker } from '../utils/googlePicker';
 import { beginTrackedApiRequest, endTrackedApiRequest } from '../utils/networkStatus';
 
 interface CharacterProfileModalProps {
@@ -52,6 +65,7 @@ const CharacterProfileModal: React.FC<CharacterProfileModalProps> = ({
   onClose,
 }) => {
   const { t, language, translateGender, translatePitch, translateTone } = useI18n();
+  const { driveConnected, driveBusy, connectGoogleDrive, disconnectGoogleDrive } = useFirebase();
   const [mmName, setMmName] = useState('');
   const [enName, setEnName] = useState('');
   const [transcript, setTranscript] = useState('');
@@ -62,6 +76,10 @@ const CharacterProfileModal: React.FC<CharacterProfileModalProps> = ({
   const [isPlayingTts, setIsPlayingTts] = useState(false);
   const [isDownloadingTts, setIsDownloadingTts] = useState(false);
   const [ttsError, setTtsError] = useState<string | null>(null);
+  const [isPickingFromDrive, setIsPickingFromDrive] = useState(false);
+  const [savingDriveTarget, setSavingDriveTarget] = useState<'json' | 'txt' | 'wav' | null>(null);
+  const [savedDriveRecord, setSavedDriveRecord] = useState<DriveFileRecord | null>(null);
+  const [driveSaveError, setDriveSaveError] = useState<string | null>(null);
 
   const modalRef = useRef<HTMLDivElement>(null);
   const transcriptInputRef = useRef<HTMLTextAreaElement>(null);
@@ -104,6 +122,8 @@ const CharacterProfileModal: React.FC<CharacterProfileModalProps> = ({
   useEffect(() => {
     stopModalAudio();
     setTtsError(null);
+    setSavedDriveRecord(null);
+    setDriveSaveError(null);
     if (!voice) return;
 
     setMmName(voice.characterName?.mm || '');
@@ -117,6 +137,7 @@ const CharacterProfileModal: React.FC<CharacterProfileModalProps> = ({
     window.setTimeout(() => transcriptInputRef.current?.focus(), 20);
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isPickingFromDrive) return;
       if (e.key === 'Escape') {
         stopModalAudio();
         onClose();
@@ -126,7 +147,7 @@ const CharacterProfileModal: React.FC<CharacterProfileModalProps> = ({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [voice, onClose, stopModalAudio]);
+  }, [voice, onClose, stopModalAudio, isPickingFromDrive]);
 
   if (!voice) return null;
 
@@ -352,7 +373,7 @@ const CharacterProfileModal: React.FC<CharacterProfileModalProps> = ({
     onClose();
   };
 
-  const handleExport = (format: 'json' | 'txt') => {
+  const buildExportData = (format: 'json' | 'txt') => {
     const trimmedMm = mmName.trim().slice(0, MAX_BURMESE_NAME_LENGTH);
     const trimmedEn = enName.trim().slice(0, MAX_BURMESE_NAME_LENGTH);
     const customCharacter =
@@ -371,7 +392,7 @@ const CharacterProfileModal: React.FC<CharacterProfileModalProps> = ({
 
     if (format === 'json') {
       const payload = {
-        app: 'MMNext Voice Studio',
+        app: 'MMNext Studio',
         exportedAt,
         voiceId: voice.name,
         characterName: customCharacter,
@@ -398,7 +419,7 @@ const CharacterProfileModal: React.FC<CharacterProfileModalProps> = ({
       mimeType = 'application/json;charset=utf-8';
     } else {
       const lines = [
-        'MMNext Voice Studio — Character Profile Backup',
+        'MMNext Studio — Character Profile Backup',
         `Exported At: ${exportedAt}`,
         '----------------------------------------',
         `Gemini Voice ID: ${voice.name}`,
@@ -427,11 +448,21 @@ const CharacterProfileModal: React.FC<CharacterProfileModalProps> = ({
       mimeType = 'text/plain;charset=utf-8';
     }
 
+    return {
+      fileName: `character-profile-${safeVoiceSlug}-${dateStamp}.${format}`,
+      content,
+      mimeType,
+      baseMimeType: format === 'json' ? 'application/json' : 'text/plain',
+    };
+  };
+
+  const handleExport = (format: 'json' | 'txt') => {
+    const { fileName, content, mimeType } = buildExportData(format);
     const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `character-profile-${safeVoiceSlug}-${dateStamp}.${format}`;
+    link.download = fileName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -441,6 +472,127 @@ const CharacterProfileModal: React.FC<CharacterProfileModalProps> = ({
     window.setTimeout(() => {
       setExportedFormat((curr) => (curr === format ? null : curr));
     }, 1800);
+  };
+
+  const handleSaveToDrive = async (target: 'json' | 'txt' | 'wav') => {
+    if (savingDriveTarget) return;
+    if (target === 'wav' && !trimmedTranscript) return;
+
+    setDriveSaveError(null);
+    setSavedDriveRecord(null);
+
+    let token = getGoogleDriveAccessToken();
+    if (!token) {
+      token = await connectGoogleDrive();
+    }
+    if (!token) return;
+
+    setSavingDriveTarget(target);
+    try {
+      let record: DriveFileRecord;
+      if (target === 'wav') {
+        const controller = new AbortController();
+        const wavBlob = await synthesizeTranscriptWav(
+          voice.name,
+          trimmedTranscript,
+          controller.signal
+        );
+        const safeVoiceSlug = voice.name.toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+        const dateStamp = new Date().toISOString().slice(0, 10);
+        record = await uploadFileToGoogleDrive(token, {
+          fileName: `${safeVoiceSlug}-transcript-tts-${dateStamp}.wav`,
+          mimeType: 'audio/wav',
+          blob: wavBlob,
+          description: `MMNext Studio synthesized WAV speech for ${voice.name}`,
+        });
+      } else {
+        const { fileName, content, baseMimeType } = buildExportData(target);
+        const blob = new Blob([content], { type: baseMimeType });
+        record = await uploadFileToGoogleDrive(token, {
+          fileName,
+          mimeType: baseMimeType,
+          blob,
+          description: `MMNext Studio character profile (${voice.name})`,
+        });
+      }
+      if (isMountedRef.current) {
+        setSavedDriveRecord(record);
+      }
+    } catch (err) {
+      if (!isMountedRef.current) return;
+      if (err instanceof DriveAuthError) {
+        disconnectGoogleDrive();
+        setDriveSaveError(t.driveTokenExpiredNotice);
+      } else {
+        setDriveSaveError(err instanceof Error ? err.message : t.driveSaveFailedError);
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setSavingDriveTarget(null);
+      }
+    }
+  };
+
+  const handlePickScriptFromDrive = async () => {
+    if (isPickingFromDrive) return;
+    setDriveSaveError(null);
+    setTtsError(null);
+
+    let token = getGoogleDriveAccessToken();
+    if (!token) {
+      token = await connectGoogleDrive();
+    }
+    if (!token) return;
+
+    setIsPickingFromDrive(true);
+    try {
+      const picked = await openGoogleDrivePicker(token, {
+        title: t.pickFromGoogleDrive,
+      });
+      if (!picked || !isMountedRef.current) return;
+
+      const content = await readPickedDriveFileContent(token, picked);
+      if (!isMountedRef.current) return;
+
+      if (content.kind !== 'text') {
+        setDriveSaveError(t.pickerUnsupportedFileNotice);
+        return;
+      }
+
+      const parsed = parseStudioDriveImport(content.text, picked.name);
+      const nextText = (parsed.transcriptText || content.text.trim()).slice(
+        0,
+        MAX_CHARACTER_TRANSCRIPT_LENGTH
+      );
+
+      if (!nextText) {
+        setDriveSaveError(t.pickerEmptyTextNotice);
+        return;
+      }
+
+      setTranscript(nextText);
+      if (parsed.kind === 'character-profile' && parsed.characterName) {
+        if (!mmName.trim() && parsed.characterName.mm) {
+          setMmName(parsed.characterName.mm.slice(0, MAX_BURMESE_NAME_LENGTH));
+        }
+        if (!enName.trim() && parsed.characterName.en) {
+          setEnName(parsed.characterName.en.slice(0, MAX_BURMESE_NAME_LENGTH));
+        }
+      }
+      transcriptInputRef.current?.focus();
+    } catch (err) {
+      if (!isMountedRef.current) return;
+      if (err instanceof DriveAuthError) {
+        disconnectGoogleDrive();
+        setDriveSaveError(t.driveTokenExpiredNotice);
+      } else {
+        setDriveSaveError(err instanceof Error ? err.message : t.driveSaveFailedError);
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsPickingFromDrive(false);
+      }
+    }
   };
 
   return (
@@ -454,7 +606,7 @@ const CharacterProfileModal: React.FC<CharacterProfileModalProps> = ({
 
       <div
         ref={modalRef}
-        className="relative w-full max-w-lg max-h-[90vh] flex flex-col rounded-3xl bg-[#FAF6EC] dark:bg-[#06231B] border border-[#D9CEB8] dark:border-[#C6A259]/28 luminous-hairline shadow-2xl overflow-hidden animate-slide-up"
+        className="relative w-full max-w-lg max-h-[90vh] flex flex-col rounded-3xl bg-[#FAF6EC] dark:bg-[#06231B] border border-[#D9CEB8] dark:border-[#C6A259]/30 luminous-hairline shadow-2xl overflow-hidden animate-slide-up"
       >
         {/* Header */}
         <div className="px-6 py-4 border-b border-[#D9CEB8]/80 dark:border-[#C6A259]/20 flex items-start justify-between gap-4 shrink-0">
@@ -625,6 +777,19 @@ const CharacterProfileModal: React.FC<CharacterProfileModalProps> = ({
                 <span>{t.characterTranscriptLabel}</span>
               </label>
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handlePickScriptFromDrive()}
+                  disabled={isPickingFromDrive || driveBusy}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#FAF6EC] dark:bg-[#092E24] border border-[#D9CEB8] dark:border-[#C6A259]/25 text-[11px] font-medium text-[#7D602D] dark:text-[#DFC589] hover:bg-[#EBE2CE] dark:hover:bg-[#114637] transition-colors disabled:opacity-50"
+                >
+                  {isPickingFromDrive ? (
+                    <Loader2 size={11} className="animate-spin" />
+                  ) : (
+                    <FolderSearch size={11} />
+                  )}
+                  <span>{isPickingFromDrive ? t.openingGooglePicker : t.pickerPickScriptBtn}</span>
+                </button>
                 <span className="text-[11px] font-mono text-[#5B7469] dark:text-[#8DA399] tabular-nums">
                   {transcript.length}/{MAX_CHARACTER_TRANSCRIPT_LENGTH}
                 </span>
@@ -757,36 +922,155 @@ const CharacterProfileModal: React.FC<CharacterProfileModalProps> = ({
           </div>
 
           {/* Local Backup Export Row */}
-          <div className="pt-3 border-t border-[#D9CEB8]/80 dark:border-[#C6A259]/20 flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[11px] font-semibold text-[#5B7469] dark:text-[#8DA399]">
-              {t.exportBackupLabel}
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => handleExport('json')}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#FAF6EC]/90 dark:bg-[#092E24] border border-[#D9CEB8] dark:border-[#C6A259]/25 text-[#06231B] dark:text-[#EAD7A4] hover:bg-[#EBE2CE] dark:hover:bg-[#114637] hover:text-[#7D602D] dark:hover:text-[#DFC589] transition-colors active:scale-95 whitespace-nowrap shrink-0"
-              >
-                {exportedFormat === 'json' ? (
-                  <Check size={13} className="text-[#2E8267] dark:text-[#DFC589]" />
-                ) : (
-                  <Download size={13} />
-                )}
-                <span>{exportedFormat === 'json' ? t.exportedNotice : t.exportProfileJson}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleExport('txt')}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#FAF6EC]/90 dark:bg-[#092E24] border border-[#D9CEB8] dark:border-[#C6A259]/25 text-[#06231B] dark:text-[#EAD7A4] hover:bg-[#EBE2CE] dark:hover:bg-[#114637] hover:text-[#7D602D] dark:hover:text-[#DFC589] transition-colors active:scale-95 whitespace-nowrap shrink-0"
-              >
-                {exportedFormat === 'txt' ? (
-                  <Check size={13} className="text-[#2E8267] dark:text-[#DFC589]" />
-                ) : (
-                  <FileText size={13} />
-                )}
-                <span>{exportedFormat === 'txt' ? t.exportedNotice : t.exportProfileTxt}</span>
-              </button>
+          <div className="pt-3 border-t border-[#D9CEB8]/80 dark:border-[#C6A259]/20 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold text-[#5B7469] dark:text-[#8DA399]">
+                {t.exportBackupLabel}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleExport('json')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#FAF6EC]/90 dark:bg-[#092E24] border border-[#D9CEB8] dark:border-[#C6A259]/25 text-[#06231B] dark:text-[#EAD7A4] hover:bg-[#EBE2CE] dark:hover:bg-[#114637] hover:text-[#7D602D] dark:hover:text-[#DFC589] transition-colors active:scale-95 whitespace-nowrap shrink-0"
+                >
+                  {exportedFormat === 'json' ? (
+                    <Check size={13} className="text-[#2E8267] dark:text-[#DFC589]" />
+                  ) : (
+                    <Download size={13} />
+                  )}
+                  <span>{exportedFormat === 'json' ? t.exportedNotice : t.exportProfileJson}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExport('txt')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#FAF6EC]/90 dark:bg-[#092E24] border border-[#D9CEB8] dark:border-[#C6A259]/25 text-[#06231B] dark:text-[#EAD7A4] hover:bg-[#EBE2CE] dark:hover:bg-[#114637] hover:text-[#7D602D] dark:hover:text-[#DFC589] transition-colors active:scale-95 whitespace-nowrap shrink-0"
+                >
+                  {exportedFormat === 'txt' ? (
+                    <Check size={13} className="text-[#2E8267] dark:text-[#DFC589]" />
+                  ) : (
+                    <FileText size={13} />
+                  )}
+                  <span>{exportedFormat === 'txt' ? t.exportedNotice : t.exportProfileTxt}</span>
+                </button>
+              </div>
             </div>
+
+            {/* Google Drive Save Row */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#D9CEB8]/60 dark:border-[#C6A259]/15">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#5B7469] dark:text-[#8DA399]">
+                <HardDrive size={12} className="text-[#7D602D] dark:text-[#DFC589]" />
+                <span>{t.googleDrive}</span>
+              </span>
+
+              {!driveConnected ? (
+                <button
+                  type="button"
+                  onClick={() => void connectGoogleDrive()}
+                  disabled={driveBusy}
+                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white hover:bg-[#F7F7F7] dark:bg-[#FAF6EC] dark:hover:bg-[#EFE6D2] text-[#1F1F1F] border border-[#747775]/40 text-xs font-semibold shadow-sm transition-all active:scale-95 disabled:opacity-60"
+                >
+                  {driveBusy ? (
+                    <Loader2 size={13} className="animate-spin text-[#0D3A2E]" />
+                  ) : (
+                    <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                      <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z" />
+                      <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24Z" />
+                      <path fill="#FBBC05" d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14Z" />
+                      <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96Z" />
+                    </svg>
+                  )}
+                  <span>{driveBusy ? t.connectingGoogleDrive : t.connectGoogleDrive}</span>
+                </button>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveToDrive('json')}
+                    disabled={savingDriveTarget !== null}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#FAF6EC]/90 dark:bg-[#092E24] border border-[#D9CEB8] dark:border-[#C6A259]/25 text-[#06231B] dark:text-[#EAD7A4] hover:bg-[#EBE2CE] dark:hover:bg-[#114637] transition-colors disabled:opacity-50 whitespace-nowrap shrink-0"
+                  >
+                    {savingDriveTarget === 'json' ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <HardDrive size={12} />
+                    )}
+                    <span>{savingDriveTarget === 'json' ? t.savingToDrive : t.saveProfileJsonToDrive}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveToDrive('txt')}
+                    disabled={savingDriveTarget !== null}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#FAF6EC]/90 dark:bg-[#092E24] border border-[#D9CEB8] dark:border-[#C6A259]/25 text-[#06231B] dark:text-[#EAD7A4] hover:bg-[#EBE2CE] dark:hover:bg-[#114637] transition-colors disabled:opacity-50 whitespace-nowrap shrink-0"
+                  >
+                    {savingDriveTarget === 'txt' ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <HardDrive size={12} />
+                    )}
+                    <span>{savingDriveTarget === 'txt' ? t.savingToDrive : t.saveProfileTxtToDrive}</span>
+                  </button>
+
+                  {trimmedTranscript && (
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveToDrive('wav')}
+                      disabled={savingDriveTarget !== null}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0D3A2E] hover:bg-[#145240] dark:bg-gradient-to-r dark:from-[#DFC589] dark:to-[#B49049] dark:hover:brightness-105 text-[#FAF6EC] dark:text-[#041813] border border-[#B49049]/40 transition-all disabled:opacity-50 whitespace-nowrap shrink-0"
+                    >
+                      {savingDriveTarget === 'wav' ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <HardDrive size={12} />
+                      )}
+                      <span>{savingDriveTarget === 'wav' ? t.savingToDrive : t.saveAudioWavToDrive}</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {savedDriveRecord && (
+              <div className="px-3 py-2 rounded-xl bg-[#E9F3EE] dark:bg-[#0D3A2E]/85 border border-[#236D56]/30 dark:border-[#C6A259]/35 text-[#114637] dark:text-[#EAD7A4] text-xs flex flex-wrap items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-1.5 min-w-0">
+                  <Check size={13} className="text-[#2E8267] dark:text-[#DFC589] shrink-0" />
+                  <span className="truncate font-medium">
+                    {t.savedToDriveNotice}: {savedDriveRecord.name}
+                  </span>
+                </span>
+                {savedDriveRecord.webViewLink && (
+                  <a
+                    href={savedDriveRecord.webViewLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-semibold underline decoration-[#B49049]/60 hover:text-[#06231B] dark:hover:text-[#FAF6EC] shrink-0"
+                  >
+                    <span>{t.openInDrive}</span>
+                    <ExternalLink size={12} />
+                  </a>
+                )}
+              </div>
+            )}
+
+            {driveSaveError && (
+              <div
+                role="alert"
+                className="px-3 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex items-center justify-between gap-2"
+              >
+                <span className="inline-flex items-center gap-1.5 min-w-0">
+                  <AlertCircle size={13} className="shrink-0" />
+                  <span className="leading-snug">{driveSaveError}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setDriveSaveError(null)}
+                  className="p-0.5 rounded shrink-0"
+                  aria-label={t.close}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Modal Footer Actions */}

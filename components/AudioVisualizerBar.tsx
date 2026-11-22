@@ -14,11 +14,16 @@ import {
   Activity,
   Waves,
   Gauge,
+  HardDrive,
+  Loader2,
+  Check,
+  ExternalLink,
 } from 'lucide-react';
 import { Voice } from '../types';
 import AudioVisualizer, { VisualizerVariant } from './AudioVisualizer';
 import PitchFrequencyPanel from './PitchFrequencyPanel';
 import { detectPitchAutocorrelation, frequencyToNote } from '../utils/pitchDetection';
+import { DriveFileRecord } from '../utils/googleDrive';
 import { useI18n } from '../i18n';
 
 interface AudioVisualizerBarProps {
@@ -33,6 +38,7 @@ interface AudioVisualizerBarProps {
   onTogglePitchPanel: () => void;
   onChangeVariant: (variant: VisualizerVariant) => void;
   onPlayToggle: (voiceName: string) => void;
+  onSaveVoiceAudioToDrive?: (voice: Voice) => Promise<DriveFileRecord | null>;
   onClose: () => void;
 }
 
@@ -56,12 +62,19 @@ const AudioVisualizerBar: React.FC<AudioVisualizerBarProps> = ({
   onTogglePitchPanel,
   onChangeVariant,
   onPlayToggle,
+  onSaveVoiceAudioToDrive,
   onClose,
 }) => {
   const { t, language, translateGender, translatePitch } = useI18n();
   const [livePitchLabel, setLivePitchLabel] = useState<string | null>(null);
+  const [isSavingDrive, setIsSavingDrive] = useState(false);
+  const [savedDriveLink, setSavedDriveLink] = useState<string | null>(null);
   const isDark =
     typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+
+  useEffect(() => {
+    setSavedDriveLink(null);
+  }, [voice?.name]);
 
   // Lightweight live pitch readout in the compact bar (~12Hz update)
   useEffect(() => {
@@ -152,7 +165,7 @@ const AudioVisualizerBar: React.FC<AudioVisualizerBarProps> = ({
             exit={{ y: '100%', opacity: 0 }}
             transition={{ type: 'spring', stiffness: 360, damping: 34 }}
             aria-label={t.audioVisualizer}
-            className="fixed bottom-0 inset-x-0 z-40 h-14 sm:h-16 bg-[#FAF6EC]/94 dark:bg-[#06231B]/94 backdrop-blur-xl border-t border-[#D9CEB8] dark:border-[#C6A259]/25 shadow-[0_-8px_30px_rgba(6,35,27,0.08)] dark:shadow-[0_-8px_30px_rgba(2,14,11,0.65)]"
+            className="fixed bottom-0 inset-x-0 z-40 h-14 sm:h-16 bg-[#FAF6EC]/95 dark:bg-[#06231B]/95 backdrop-blur-xl border-t border-[#D9CEB8] dark:border-[#C6A259]/25 shadow-[0_-8px_30px_rgba(6,35,27,0.08)] dark:shadow-[0_-8px_30px_rgba(2,14,11,0.65)]"
           >
             {/* Real-time playback progress hairline */}
             <div className="absolute top-0 inset-x-0 h-[2px] bg-[#EBE2CE] dark:bg-[#041813] overflow-hidden pointer-events-none">
@@ -243,6 +256,64 @@ const AudioVisualizerBar: React.FC<AudioVisualizerBarProps> = ({
                     {livePitchLabel || t.pitchButtonLabel}
                   </span>
                 </button>
+
+                {/* Save Active Voice WAV to Google Drive */}
+                {voice && onSaveVoiceAudioToDrive && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      disabled={isSavingDrive}
+                      onClick={async () => {
+                        setIsSavingDrive(true);
+                        setSavedDriveLink(null);
+                        try {
+                          const record = await onSaveVoiceAudioToDrive(voice);
+                          if (record?.webViewLink) {
+                            setSavedDriveLink(record.webViewLink);
+                          } else if (record) {
+                            setSavedDriveLink('#saved');
+                          }
+                        } finally {
+                          setIsSavingDrive(false);
+                        }
+                      }}
+                      title={t.saveAudioWavToDrive}
+                      aria-label={`${t.saveAudioWavToDrive}: ${displayName}`}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-colors whitespace-nowrap shrink-0 disabled:opacity-50 ${
+                        savedDriveLink
+                          ? 'bg-[#E9F3EE] dark:bg-[#145240] border-[#236D56]/40 dark:border-[#C6A259]/50 text-[#114637] dark:text-[#DFC589]'
+                          : 'bg-[#FAF6EC]/90 dark:bg-[#092E24] border-[#D9CEB8] dark:border-[#C6A259]/25 text-[#06231B] dark:text-[#EAD7A4] hover:bg-[#EBE2CE] dark:hover:bg-[#114637]'
+                      }`}
+                    >
+                      {isSavingDrive ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : savedDriveLink ? (
+                        <Check size={12} />
+                      ) : (
+                        <HardDrive size={12} />
+                      )}
+                      <span className="hidden md:inline">
+                        {isSavingDrive
+                          ? t.savingToDrive
+                          : savedDriveLink
+                          ? t.savedToDriveNotice
+                          : t.saveAudioWavToDrive}
+                      </span>
+                    </button>
+                    {savedDriveLink && savedDriveLink !== '#saved' && (
+                      <a
+                        href={savedDriveLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={t.openInDrive}
+                        aria-label={t.openInDrive}
+                        className="p-1.5 rounded-lg bg-[#E9F3EE] dark:bg-[#145240] border border-[#236D56]/40 dark:border-[#C6A259]/50 text-[#114637] dark:text-[#DFC589] hover:brightness-110 transition-all"
+                      >
+                        <ExternalLink size={12} />
+                      </a>
+                    )}
+                  </div>
+                )}
 
                 {/* Desktop Mode Switcher */}
                 <div
