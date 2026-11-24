@@ -14,6 +14,7 @@ import {
 } from 'firebase/auth';
 import {
   getFirestore,
+  initializeFirestore,
   doc,
   getDoc,
   getDocFromServer,
@@ -26,6 +27,7 @@ import {
   updateDoc,
   deleteDoc,
   writeBatch,
+  runTransaction,
   serverTimestamp,
   Timestamp,
   Unsubscribe,
@@ -50,9 +52,27 @@ export const MAX_SYSTEM_INSTRUCTION_LENGTH = 4000;
 export const MAX_SAMPLE_TEXT_LENGTH = 1000;
 export const MAX_CASTING_VOICE_NAMES = 10;
 export const MAX_API_KEY_LENGTH = 512;
+export const MAX_USAGE_PLAY_COUNT = 1_000_000;
+export const MAX_USAGE_TOTAL_SECONDS = 8_640_000;
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+function createFirestoreInstance() {
+  const databaseId = firebaseConfig.firestoreDatabaseId || undefined;
+  try {
+    return initializeFirestore(
+      app,
+      {
+        experimentalForceLongPolling: true,
+      },
+      databaseId
+    );
+  } catch {
+    return databaseId ? getFirestore(app, databaseId) : getFirestore(app);
+  }
+}
+
+export const db = createFirestoreInstance();
 export const auth = getAuth(app);
 export const analytics =
   typeof window !== 'undefined' && firebaseConfig.measurementId
@@ -232,6 +252,14 @@ export interface CastingHistoryRecord extends AiRecommendation {
   id: string;
   prompt: string;
   createdAtMs: number;
+}
+
+export interface VoiceUsageRecord {
+  voiceName: string;
+  playCount: number;
+  totalSeconds: number;
+  lastPlayedAtMs: number;
+  updatedAtMs: number;
 }
 
 export async function ensureUserWorkspace(
@@ -555,6 +583,114 @@ export async function deleteCastingHistoryInFirestore(
   }
 }
 
+export async function recordVoicePlayInFirestore(
+  userId: string,
+  voiceName: string
+): Promise<void> {
+  if (!isSafeId(userId) || !isSafeId(voiceName, MAX_VOICE_NAME_LENGTH)) return;
+  if (!auth.currentUser || auth.currentUser.uid !== userId || !auth.currentUser.emailVerified) return;
+  const path = `users/${userId}/voiceUsage/${voiceName}`;
+  const ref = doc(db, 'users', userId, 'voiceUsage', voiceName);
+
+  try {
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (snap.exists()) {
+        const data = snap.data();
+        const prevCount =
+          typeof data.playCount === 'number' && Number.isFinite(data.playCount)
+            ? Math.max(0, Math.floor(data.playCount))
+            : 0;
+        const nextCount = Math.min(MAX_USAGE_PLAY_COUNT, prevCount + 1);
+        tx.update(ref, {
+          playCount: nextCount,
+          lastPlayedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        tx.set(ref, {
+          userId,
+          voiceName,
+          playCount: 1,
+          totalSeconds: 0,
+          lastPlayedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function recordVoiceListenTimeInFirestore(
+  userId: string,
+  voiceName: string,
+  addedSeconds: number
+): Promise<void> {
+  if (!isSafeId(userId) || !isSafeId(voiceName, MAX_VOICE_NAME_LENGTH)) return;
+  if (!auth.currentUser || auth.currentUser.uid !== userId || !auth.currentUser.emailVerified) return;
+  if (!Number.isFinite(addedSeconds) || addedSeconds < 0.1) return;
+
+  const boundedDelta = Math.min(3600, Math.round(addedSeconds * 100) / 100);
+  if (boundedDelta < 0.1) return;
+
+  const path = `users/${userId}/voiceUsage/${voiceName}`;
+  const ref = doc(db, 'users', userId, 'voiceUsage', voiceName);
+
+  try {
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (snap.exists()) {
+        const data = snap.data();
+        const prevSeconds =
+          typeof data.totalSeconds === 'number' && Number.isFinite(data.totalSeconds)
+            ? Math.max(0, data.totalSeconds)
+            : 0;
+        const nextSeconds = Math.min(
+          MAX_USAGE_TOTAL_SECONDS,
+          Math.round((prevSeconds + boundedDelta) * 100) / 100
+        );
+        tx.update(ref, {
+          totalSeconds: nextSeconds,
+          lastPlayedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        tx.set(ref, {
+          userId,
+          voiceName,
+          playCount: 1,
+          totalSeconds: Math.min(MAX_USAGE_TOTAL_SECONDS, boundedDelta),
+          lastPlayedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function clearVoiceUsageInFirestore(
+  userId: string,
+  voiceNames: string[]
+): Promise<void> {
+  if (!isSafeId(userId) || voiceNames.length === 0) return;
+  const path = `users/${userId}/voiceUsage`;
+  try {
+    const batch = writeBatch(db);
+    for (const voiceName of voiceNames) {
+      if (isSafeId(voiceName, MAX_VOICE_NAME_LENGTH)) {
+        batch.delete(doc(db, 'users', userId, 'voiceUsage', voiceName));
+      }
+    }
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
 export function subscribeUserData(
   userId: string,
   handlers: {
@@ -562,6 +698,7 @@ export function subscribeUserData(
     onCustomNames: (nameMap: Record<string, BurmeseCharacterName>) => void;
     onCharacterTranscripts: (transcriptMap: Record<string, string>) => void;
     onCastingHistory: (items: CastingHistoryRecord[]) => void;
+    onVoiceUsage?: (records: VoiceUsageRecord[]) => void;
     onPreferences: (prefs: UserWorkspacePrefs) => void;
     onError: (err: Error) => void;
   }
@@ -571,6 +708,7 @@ export function subscribeUserData(
   const namesPath = `users/${userId}/customNames`;
   const transcriptsPath = `users/${userId}/characterTranscripts`;
   const castingPath = `users/${userId}/castingHistory`;
+  const usagePath = `users/${userId}/voiceUsage`;
 
   const unsubUser = onSnapshot(
     doc(db, 'users', userId),
@@ -722,12 +860,52 @@ export function subscribeUserData(
     }
   );
 
+  const usageQuery = query(
+    collection(db, 'users', userId, 'voiceUsage'),
+    where('userId', '==', userId),
+    limit(60)
+  );
+  const unsubUsage = onSnapshot(
+    usageQuery,
+    (snapshot) => {
+      const records: VoiceUsageRecord[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (
+          typeof data.voiceName === 'string' &&
+          typeof data.playCount === 'number' &&
+          typeof data.totalSeconds === 'number'
+        ) {
+          records.push({
+            voiceName: data.voiceName,
+            playCount: Math.max(0, Math.floor(data.playCount)),
+            totalSeconds: Math.max(0, data.totalSeconds),
+            lastPlayedAtMs:
+              data.lastPlayedAt instanceof Timestamp ? data.lastPlayedAt.toMillis() : 0,
+            updatedAtMs:
+              data.updatedAt instanceof Timestamp ? data.updatedAt.toMillis() : 0,
+          });
+        }
+      });
+      records.sort((a, b) => b.playCount - a.playCount || b.totalSeconds - a.totalSeconds);
+      handlers.onVoiceUsage?.(records);
+    },
+    (error) => {
+      try {
+        handleFirestoreError(error, OperationType.LIST, usagePath);
+      } catch (wrapped) {
+        handlers.onError(wrapped instanceof Error ? wrapped : new Error(String(wrapped)));
+      }
+    }
+  );
+
   return () => {
     unsubUser();
     unsubFavs();
     unsubNames();
     unsubTranscripts();
     unsubCasting();
+    unsubUsage();
   };
 }
 

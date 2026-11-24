@@ -15,11 +15,13 @@ import MobileSidebar from './components/MobileSidebar';
 import CompareView, { CompareSequencePhase } from './components/CompareView';
 import AudioVisualizerBar from './components/AudioVisualizerBar';
 import PitchDistributionModal from './components/PitchDistributionModal';
+import UsageStatisticsModal, { LiveListeningDelta } from './components/UsageStatisticsModal';
 import LoginModal from './components/LoginModal';
 import LegalPages, { PublicInfoPage } from './components/LegalPages';
 import ShareVoiceModal from './components/ShareVoiceModal';
 import CharacterProfileModal from './components/CharacterProfileModal';
 import GoogleDriveModal from './components/GoogleDriveModal';
+import OfflineIndicator from './components/OfflineIndicator';
 import { PITCH_HZ_MIN_BOUND, PITCH_HZ_MAX_BOUND } from './components/PitchRangeFilter';
 import { VisualizerVariant } from './components/AudioVisualizer';
 import { getVoicePitchHz } from './utils/pitchDetection';
@@ -49,6 +51,9 @@ import {
   saveUserApiKeyInFirestore,
   getGeminiApiKeyHeaders,
   notifyGeminiQuotaUpdated,
+  recordVoicePlayInFirestore,
+  recordVoiceListenTimeInFirestore,
+  clearVoiceUsageInFirestore,
 } from './firebase';
 
 const FAVORITES_STORAGE_KEY = 'gemini-voice-library:favorites';
@@ -112,6 +117,8 @@ const App: React.FC = () => {
     cloudFavorites,
     cloudCustomNames,
     cloudCharacterTranscripts,
+    cloudVoiceUsage,
+    voiceUsageLoaded,
     cloudPreferences,
   } = useFirebase();
   const [asyncFatalError, setAsyncFatalError] = useState<Error | null>(null);
@@ -131,6 +138,10 @@ const App: React.FC = () => {
   const [showFavoritesDrawer, setShowFavoritesDrawer] = useState(false);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [showPitchChart, setShowPitchChart] = useState(false);
+  const [showUsageStats, setShowUsageStats] = useState(false);
+  const [liveListeningDelta, setLiveListeningDelta] = useState<LiveListeningDelta | null>(null);
+  const showUsageStatsRef = useRef(false);
+  showUsageStatsRef.current = showUsageStats;
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [showGoogleDriveModal, setShowGoogleDriveModal] = useState(false);
@@ -192,7 +203,37 @@ const App: React.FC = () => {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const sampleBlobCacheRef = useRef<Map<string, Blob>>(new Map());
   const ttsBlobCacheRef = useRef<Map<string, Blob>>(new Map());
+  const inFlightAudioFetchesRef = useRef<Map<string, Promise<Blob>>>(new Map());
   const activeObjectUrlRef = useRef<string | null>(null);
+  const playbackSessionRef = useRef<{
+    voiceName: string;
+    lastTickMs: number;
+    accumulatedSeconds: number;
+  } | null>(null);
+  const userUidRef = useRef<string | null>(user?.uid || null);
+  userUidRef.current = user?.uid || null;
+
+  const cacheAudioSampleBlob = useCallback((voiceName: string, blob: Blob) => {
+    const cache = sampleBlobCacheRef.current;
+    if (cache.has(voiceName)) {
+      cache.delete(voiceName);
+    } else if (cache.size >= 40) {
+      const oldestKey = cache.keys().next().value;
+      if (oldestKey) cache.delete(oldestKey);
+    }
+    cache.set(voiceName, blob);
+  }, []);
+
+  const cacheCustomTtsBlob = useCallback((ttsCacheKey: string, blob: Blob) => {
+    const cache = ttsBlobCacheRef.current;
+    if (cache.has(ttsCacheKey)) {
+      cache.delete(ttsCacheKey);
+    } else if (cache.size >= 30) {
+      const oldestKey = cache.keys().next().value;
+      if (oldestKey) cache.delete(oldestKey);
+    }
+    cache.set(ttsCacheKey, blob);
+  }, []);
 
   const [filters, setFilters] = useState<FilterState>({
     gender: 'All',
@@ -369,6 +410,9 @@ const App: React.FC = () => {
       setShowFavoritesDrawer(false);
       setShowMobileSidebar(false);
       setShowPitchChart(false);
+      setShowUsageStats(false);
+      setLiveListeningDelta(null);
+      playbackSessionRef.current = null;
       setShowGoogleDriveModal(false);
       setShowLoginModal(false);
     }
@@ -530,6 +574,52 @@ const App: React.FC = () => {
     };
   }, []);
 
+  const flushPlaybackSession = useCallback(
+    (resetSession = true) => {
+      const session = playbackSessionRef.current;
+      if (!session) return;
+
+      const audio = audioRef.current;
+      if (audio && !audio.paused && !audio.ended) {
+        const now = performance.now();
+        const extraSec = Math.min(2, Math.max(0, (now - session.lastTickMs) / 1000));
+        session.accumulatedSeconds += extraSec;
+        session.lastTickMs = now;
+      }
+
+      const toFlush = Math.round(session.accumulatedSeconds * 100) / 100;
+      if (resetSession) {
+        playbackSessionRef.current = null;
+        setLiveListeningDelta(null);
+      } else {
+        session.accumulatedSeconds = 0;
+        session.lastTickMs = performance.now();
+        if (showUsageStatsRef.current) {
+          setLiveListeningDelta({ voiceName: session.voiceName, seconds: 0 });
+        }
+      }
+
+      const uid = userUidRef.current;
+      if (uid && toFlush >= 0.1 && VALID_VOICE_NAMES.has(session.voiceName)) {
+        void recordVoiceListenTimeInFirestore(uid, session.voiceName, toFlush).catch(
+          reportFirestoreError
+        );
+      }
+    },
+    [reportFirestoreError]
+  );
+
+  useEffect(() => {
+    const handlePageHide = () => {
+      flushPlaybackSession(true);
+    };
+    window.addEventListener('pagehide', handlePageHide);
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      flushPlaybackSession(true);
+    };
+  }, [flushPlaybackSession]);
+
   // Centralized Authenticated Audio Playback
   useEffect(() => {
     const audio = audioRef.current;
@@ -537,6 +627,7 @@ const App: React.FC = () => {
 
     let cancelled = false;
     const controller = new AbortController();
+    flushPlaybackSession(true);
     audio.pause();
     audio.currentTime = 0;
     setAudioProgress({ currentTime: 0, duration: 0 });
@@ -559,93 +650,119 @@ const App: React.FC = () => {
             const customTranscript = (characterTranscriptMapRef.current[voice.name] || '').trim();
             const isCustomTranscript = customTranscript.length > 0;
             const ttsCacheKey = isCustomTranscript ? `${voice.name}::${customTranscript}` : '';
+            const inFlightKey = isCustomTranscript ? `tts:${ttsCacheKey}` : `sample:${voice.name}`;
+
             let wavBlob = isCustomTranscript
               ? ttsBlobCacheRef.current.get(ttsCacheKey)
               : sampleBlobCacheRef.current.get(voice.name);
 
             if (!wavBlob) {
-              let resp: Response | null = null;
-              let forceRefresh = false;
-
-              for (let attempt = 0; attempt < 3; attempt++) {
-                if (cancelled || controller.signal.aborted) return;
-                const attemptController = new AbortController();
-                const onOuterAbort = () => attemptController.abort();
-                controller.signal.addEventListener('abort', onOuterAbort, { once: true });
-                const timer = window.setTimeout(() => attemptController.abort(), 120_000);
-                const reqId = beginTrackedApiRequest();
-                const startedAt = performance.now();
-
+              const existingInFlight = inFlightAudioFetchesRef.current.get(inFlightKey);
+              if (existingInFlight) {
                 try {
-                  const authHeaders = await getGeminiApiKeyHeaders(forceRefresh);
-                  resp = isCustomTranscript
-                    ? await fetch('/api/tts', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', ...authHeaders },
-                        body: JSON.stringify({
-                          text: customTranscript,
-                          voiceName: voice.name,
-                        }),
-                        signal: attemptController.signal,
-                      })
-                    : await fetch(
-                        `/api/voice-sample/${encodeURIComponent(voice.name)}?lang=mm&v=1`,
-                        {
-                          headers: authHeaders,
+                  wavBlob = await existingInFlight;
+                } catch {
+                  // Preload may have been aborted or failed; fall back to dedicated fetch
+                }
+              }
+            }
+
+            if (cancelled || controller.signal.aborted) return;
+
+            if (!wavBlob) {
+              const dedicatedFetch = (async (): Promise<Blob> => {
+                let resp: Response | null = null;
+                let forceRefresh = false;
+
+                for (let attempt = 0; attempt < 3; attempt++) {
+                  if (cancelled || controller.signal.aborted) {
+                    throw new DOMException('Aborted', 'AbortError');
+                  }
+                  const attemptController = new AbortController();
+                  const onOuterAbort = () => attemptController.abort();
+                  controller.signal.addEventListener('abort', onOuterAbort, { once: true });
+                  const timer = window.setTimeout(() => attemptController.abort(), 120_000);
+                  const reqId = beginTrackedApiRequest();
+                  const startedAt = performance.now();
+
+                  try {
+                    const authHeaders = await getGeminiApiKeyHeaders(forceRefresh);
+                    resp = isCustomTranscript
+                      ? await fetch('/api/tts', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', ...authHeaders },
+                          body: JSON.stringify({
+                            text: customTranscript,
+                            voiceName: voice.name,
+                          }),
                           signal: attemptController.signal,
-                        }
-                      );
-                  endTrackedApiRequest(reqId, performance.now() - startedAt, resp.ok);
-                  notifyGeminiQuotaUpdated();
+                        })
+                      : await fetch(
+                          `/api/voice-sample/${encodeURIComponent(voice.name)}?lang=mm&v=1`,
+                          {
+                            headers: authHeaders,
+                            signal: attemptController.signal,
+                          }
+                        );
+                    endTrackedApiRequest(reqId, performance.now() - startedAt, resp.ok);
+                    notifyGeminiQuotaUpdated();
 
-                  if (resp.status === 401 && !forceRefresh && attempt < 2) {
-                    forceRefresh = true;
-                    await new Promise((r) => setTimeout(r, 400));
-                    continue;
+                    if (resp.status === 401 && !forceRefresh && attempt < 2) {
+                      forceRefresh = true;
+                      await new Promise((r) => setTimeout(r, 400));
+                      continue;
+                    }
+                    if (
+                      (resp.status === 408 ||
+                        resp.status === 502 ||
+                        resp.status === 503 ||
+                        resp.status === 504) &&
+                      attempt < 2
+                    ) {
+                      await new Promise((r) => setTimeout(r, 900 * (attempt + 1)));
+                      continue;
+                    }
+                    break;
+                  } catch (fetchErr) {
+                    endTrackedApiRequest(reqId, performance.now() - startedAt, false);
+                    if (cancelled || controller.signal.aborted) throw fetchErr;
+                    if (attempt < 2) {
+                      await new Promise((r) => setTimeout(r, 900 * (attempt + 1)));
+                      continue;
+                    }
+                    throw fetchErr;
+                  } finally {
+                    window.clearTimeout(timer);
+                    controller.signal.removeEventListener('abort', onOuterAbort);
                   }
-                  if (
-                    (resp.status === 408 ||
-                      resp.status === 502 ||
-                      resp.status === 503 ||
-                      resp.status === 504) &&
-                    attempt < 2
-                  ) {
-                    await new Promise((r) => setTimeout(r, 900 * (attempt + 1)));
-                    continue;
-                  }
-                  break;
-                } catch (fetchErr) {
-                  endTrackedApiRequest(reqId, performance.now() - startedAt, false);
-                  if (cancelled || controller.signal.aborted) return;
-                  if (attempt < 2) {
-                    await new Promise((r) => setTimeout(r, 900 * (attempt + 1)));
-                    continue;
-                  }
-                  throw fetchErr;
-                } finally {
-                  window.clearTimeout(timer);
-                  controller.signal.removeEventListener('abort', onOuterAbort);
                 }
-              }
 
-              if (!resp || !resp.ok) {
-                const errBody = resp ? await resp.json().catch(() => ({})) : {};
-                throw new Error(
-                  errBody.error ||
-                    (resp?.status === 429
-                      ? t.dailyQuotaExhaustedBanner
-                      : t.ttsFailedError)
-                );
-              }
-              wavBlob = await resp.blob();
-              if (isCustomTranscript) {
-                if (ttsBlobCacheRef.current.size >= 30) {
-                  const oldestKey = ttsBlobCacheRef.current.keys().next().value;
-                  if (oldestKey) ttsBlobCacheRef.current.delete(oldestKey);
+                if (!resp || !resp.ok) {
+                  const errBody = resp ? await resp.json().catch(() => ({})) : {};
+                  throw new Error(
+                    errBody.error ||
+                      (resp?.status === 429
+                        ? t.dailyQuotaExhaustedBanner
+                        : t.ttsFailedError)
+                  );
                 }
-                ttsBlobCacheRef.current.set(ttsCacheKey, wavBlob);
-              } else {
-                sampleBlobCacheRef.current.set(voice.name, wavBlob);
+
+                const fetchedBlob = await resp.blob();
+                if (isCustomTranscript) {
+                  cacheCustomTtsBlob(ttsCacheKey, fetchedBlob);
+                } else {
+                  cacheAudioSampleBlob(voice.name, fetchedBlob);
+                }
+                return fetchedBlob;
+              })();
+
+              inFlightAudioFetchesRef.current.set(inFlightKey, dedicatedFetch);
+              try {
+                wavBlob = await dedicatedFetch;
+              } finally {
+                if (inFlightAudioFetchesRef.current.get(inFlightKey) === dedicatedFetch) {
+                  inFlightAudioFetchesRef.current.delete(inFlightKey);
+                }
               }
             }
 
@@ -655,6 +772,16 @@ const App: React.FC = () => {
             activeObjectUrlRef.current = objectUrl;
             audio.src = objectUrl;
             await audio.play();
+
+            playbackSessionRef.current = {
+              voiceName: voice.name,
+              lastTickMs: performance.now(),
+              accumulatedSeconds: 0,
+            };
+            const uid = userUidRef.current;
+            if (uid && VALID_VOICE_NAMES.has(voice.name)) {
+              void recordVoicePlayInFirestore(uid, voice.name).catch(reportFirestoreError);
+            }
           } catch (e: any) {
             if (cancelled || controller.signal.aborted || e?.name === 'AbortError') return;
             console.error('Playback failed', e);
@@ -670,8 +797,18 @@ const App: React.FC = () => {
     return () => {
       cancelled = true;
       controller.abort();
+      flushPlaybackSession(true);
     };
-  }, [playingVoice, ensureAudioAnalyser, t.dailyQuotaExhaustedBanner, t.ttsFailedError]);
+  }, [
+    playingVoice,
+    ensureAudioAnalyser,
+    cacheAudioSampleBlob,
+    cacheCustomTtsBlob,
+    flushPlaybackSession,
+    reportFirestoreError,
+    t.dailyQuotaExhaustedBanner,
+    t.ttsFailedError,
+  ]);
 
   // Brief pause between Voice A and Voice B during sequential comparison
   useEffect(() => {
@@ -878,6 +1015,216 @@ const App: React.FC = () => {
     );
   }, [filteredVoices]);
 
+  // Predictive audio sample preloading: prioritize the focused carousel voice, then adjacent neighbors
+  useEffect(() => {
+    if (!authReady || !user || viewMode !== 'carousel' || filteredVoices.length === 0) {
+      return;
+    }
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      return;
+    }
+    const navConn = (
+      navigator as Navigator & { connection?: { saveData?: boolean } }
+    ).connection;
+    if (navConn?.saveData) {
+      return;
+    }
+
+    const focusedVoice = filteredVoices[activeIndex] ?? null;
+    const adjacentVoices = Array.from(new Set([activeIndex + 1, activeIndex - 1]))
+      .filter((idx) => idx >= 0 && idx < filteredVoices.length && idx !== activeIndex)
+      .map((idx) => filteredVoices[idx])
+      .filter((voice): voice is Voice => Boolean(voice));
+
+    if (!focusedVoice && adjacentVoices.length === 0) return;
+
+    let cancelled = false;
+    const preloadController = new AbortController();
+    const activeTimers = new Set<number>();
+
+    const waitMs = (ms: number) =>
+      new Promise<void>((resolve) => {
+        if (ms <= 0 || cancelled || preloadController.signal.aborted) {
+          resolve();
+          return;
+        }
+        const timerId = window.setTimeout(() => {
+          activeTimers.delete(timerId);
+          resolve();
+        }, ms);
+        activeTimers.add(timerId);
+      });
+
+    const ensureVoicePreloaded = async (
+      voice: Voice
+    ): Promise<'ok' | 'quota_exhausted' | 'aborted' | 'error'> => {
+      if (cancelled || preloadController.signal.aborted) return 'aborted';
+
+      const customTranscript = (characterTranscriptMap[voice.name] || '').trim();
+      const isCustomTranscript = customTranscript.length > 0;
+      const ttsCacheKey = isCustomTranscript ? `${voice.name}::${customTranscript}` : '';
+      const inFlightKey = isCustomTranscript ? `tts:${ttsCacheKey}` : `sample:${voice.name}`;
+
+      const alreadyCached = isCustomTranscript
+        ? ttsBlobCacheRef.current.has(ttsCacheKey)
+        : sampleBlobCacheRef.current.has(voice.name);
+      if (alreadyCached) {
+        return 'ok';
+      }
+
+      const existingInFlight = inFlightAudioFetchesRef.current.get(inFlightKey);
+      if (existingInFlight) {
+        try {
+          await existingInFlight;
+          return cancelled || preloadController.signal.aborted ? 'aborted' : 'ok';
+        } catch (inFlightErr) {
+          const status = (inFlightErr as { status?: number })?.status;
+          if (status === 429) return 'quota_exhausted';
+          return cancelled || preloadController.signal.aborted ? 'aborted' : 'error';
+        }
+      }
+
+      const preloadPromise = (async (): Promise<Blob> => {
+        const itemController = new AbortController();
+        const onOuterAbort = () => itemController.abort();
+        preloadController.signal.addEventListener('abort', onOuterAbort, { once: true });
+        const timeoutId = window.setTimeout(() => itemController.abort(), 30_000);
+
+        try {
+          let authHeaders = await getGeminiApiKeyHeaders(false);
+          let resp = isCustomTranscript
+            ? await fetch('/api/tts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...authHeaders },
+                body: JSON.stringify({
+                  text: customTranscript,
+                  voiceName: voice.name,
+                }),
+                signal: itemController.signal,
+              })
+            : await fetch(
+                `/api/voice-sample/${encodeURIComponent(voice.name)}?lang=mm&v=1`,
+                {
+                  headers: authHeaders,
+                  signal: itemController.signal,
+                }
+              );
+
+          if (resp.status === 401 && !itemController.signal.aborted) {
+            authHeaders = await getGeminiApiKeyHeaders(true);
+            resp = isCustomTranscript
+              ? await fetch('/api/tts', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', ...authHeaders },
+                  body: JSON.stringify({
+                    text: customTranscript,
+                    voiceName: voice.name,
+                  }),
+                  signal: itemController.signal,
+                })
+              : await fetch(
+                  `/api/voice-sample/${encodeURIComponent(voice.name)}?lang=mm&v=1`,
+                  {
+                    headers: authHeaders,
+                    signal: itemController.signal,
+                  }
+                );
+          }
+
+          if (!resp.ok) {
+            const err = new Error(`Preload failed (${resp.status})`) as Error & {
+              status?: number;
+            };
+            err.status = resp.status;
+            throw err;
+          }
+
+          const fetchedBlob = await resp.blob();
+          if (isCustomTranscript) {
+            cacheCustomTtsBlob(ttsCacheKey, fetchedBlob);
+          } else {
+            cacheAudioSampleBlob(voice.name, fetchedBlob);
+          }
+          notifyGeminiQuotaUpdated();
+          return fetchedBlob;
+        } finally {
+          window.clearTimeout(timeoutId);
+          preloadController.signal.removeEventListener('abort', onOuterAbort);
+        }
+      })();
+
+      inFlightAudioFetchesRef.current.set(inFlightKey, preloadPromise);
+      try {
+        await preloadPromise;
+        return 'ok';
+      } catch (preloadErr) {
+        const status = (preloadErr as { status?: number })?.status;
+        if (status === 429) return 'quota_exhausted';
+        if (cancelled || preloadController.signal.aborted) return 'aborted';
+        return 'error';
+      } finally {
+        if (inFlightAudioFetchesRef.current.get(inFlightKey) === preloadPromise) {
+          inFlightAudioFetchesRef.current.delete(inFlightKey);
+        }
+      }
+    };
+
+    const effectStartedAt = performance.now();
+
+    (async () => {
+      // Phase 1: Prioritize the currently focused voice immediately after a minimal micro-settle
+      await waitMs(60);
+      if (cancelled || preloadController.signal.aborted) return;
+
+      if (focusedVoice) {
+        const focusedOutcome = await ensureVoicePreloaded(focusedVoice);
+        if (
+          focusedOutcome === 'quota_exhausted' ||
+          focusedOutcome === 'aborted' ||
+          cancelled ||
+          preloadController.signal.aborted
+        ) {
+          return;
+        }
+      }
+
+      // Phase 2: Once focused voice is ready and carousel has settled, preload adjacent voices
+      const remainingSettleMs = 240 - (performance.now() - effectStartedAt);
+      if (remainingSettleMs > 0) {
+        await waitMs(remainingSettleMs);
+      }
+      if (cancelled || preloadController.signal.aborted) return;
+
+      for (const adjacentVoice of adjacentVoices) {
+        const outcome = await ensureVoicePreloaded(adjacentVoice);
+        if (
+          outcome === 'quota_exhausted' ||
+          outcome === 'aborted' ||
+          cancelled ||
+          preloadController.signal.aborted
+        ) {
+          return;
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      activeTimers.forEach((timerId) => window.clearTimeout(timerId));
+      activeTimers.clear();
+      preloadController.abort();
+    };
+  }, [
+    authReady,
+    user,
+    viewMode,
+    activeIndex,
+    filteredVoices,
+    characterTranscriptMap,
+    cacheAudioSampleBlob,
+    cacheCustomTtsBlob,
+  ]);
+
   const handlePlayToggle = useCallback((voiceName: string) => {
     setSequencePhase('idle');
     setActiveCompareSingleSlot(null);
@@ -885,6 +1232,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleAudioEnded = useCallback(() => {
+    flushPlaybackSession(true);
     if (sequencePhase === 'playing-a') {
       setPlayingVoice(null);
       setSequencePhase('gap');
@@ -895,7 +1243,7 @@ const App: React.FC = () => {
       setPlayingVoice(null);
       setActiveCompareSingleSlot(null);
     }
-  }, [sequencePhase]);
+  }, [sequencePhase, flushPlaybackSession]);
 
   const handleToggleCompare = useCallback(
     (voiceName: string) => {
@@ -1065,10 +1413,23 @@ const App: React.FC = () => {
     return voicesWithNames.find((v) => v.name === targetName) || null;
   }, [playingVoice, lastPlayedVoiceName, filteredVoices, activeIndex, voicesWithNames]);
 
+  const handleOpenUsageStats = useCallback(() => {
+    flushPlaybackSession(false);
+    setShowUsageStats(true);
+  }, [flushPlaybackSession]);
+
+  const handleClearUsageStats = useCallback(async () => {
+    if (!user?.uid || cloudVoiceUsage.length === 0) return;
+    const voiceNames = cloudVoiceUsage.map((r) => r.voiceName);
+    await clearVoiceUsageInFirestore(user.uid, voiceNames).catch(reportFirestoreError);
+  }, [user?.uid, cloudVoiceUsage, reportFirestoreError]);
+
   const isModalOpen =
     showVoiceFinder ||
     showFavoritesDrawer ||
     showMobileSidebar ||
+    showPitchChart ||
+    showUsageStats ||
     showLoginModal ||
     showApiKeyModal ||
     showGoogleDriveModal ||
@@ -1076,7 +1437,7 @@ const App: React.FC = () => {
     Boolean(editingCharacterVoice) ||
     Boolean(aiResult && isAiCardVisible);
 
-  const isAnyModalOpen = isModalOpen || showPitchChart;
+  const isAnyModalOpen = isModalOpen;
 
   // Global keyboard shortcuts for Carousel & Grid views (Arrow keys, Home/End, Space)
   useEffect(() => {
@@ -1163,7 +1524,10 @@ const App: React.FC = () => {
       <audio
         ref={audioRef}
         onEnded={handleAudioEnded}
-        onError={handleStopCompare}
+        onError={() => {
+          flushPlaybackSession(true);
+          handleStopCompare();
+        }}
         onLoadedMetadata={(e) => {
           const el = e.currentTarget;
           setAudioProgress({
@@ -1177,6 +1541,19 @@ const App: React.FC = () => {
             currentTime: el.currentTime || 0,
             duration: Number.isFinite(el.duration) ? el.duration : 0,
           });
+          const session = playbackSessionRef.current;
+          if (session && !el.paused && !el.ended) {
+            const now = performance.now();
+            const dt = Math.min(2, Math.max(0, (now - session.lastTickMs) / 1000));
+            session.accumulatedSeconds += dt;
+            session.lastTickMs = now;
+            if (showUsageStatsRef.current) {
+              setLiveListeningDelta({
+                voiceName: session.voiceName,
+                seconds: session.accumulatedSeconds,
+              });
+            }
+          }
         }}
         preload="none"
       />
@@ -1272,6 +1649,7 @@ const App: React.FC = () => {
           isVisualizerOpen={isVisualizerOpen}
           onToggleVisualizer={() => setIsVisualizerOpen((prev) => !prev)}
           onOpenPitchChart={() => setShowPitchChart(true)}
+          onOpenUsageStats={handleOpenUsageStats}
           onOpenLogin={() => setShowLoginModal(true)}
           onOpenApiKeySettings={() => setShowApiKeyModal(true)}
           onOpenGoogleDrive={() => setShowGoogleDriveModal(true)}
@@ -1499,6 +1877,7 @@ const App: React.FC = () => {
         isVisualizerOpen={isVisualizerOpen}
         onToggleVisualizer={() => setIsVisualizerOpen((prev) => !prev)}
         onOpenPitchChart={() => setShowPitchChart(true)}
+        onOpenUsageStats={handleOpenUsageStats}
         onOpenGoogleDrive={() => setShowGoogleDriveModal(true)}
       />
 
@@ -1540,6 +1919,20 @@ const App: React.FC = () => {
         onClose={() => setShowPitchChart(false)}
         voices={voicesWithNames}
         onSelectPitchFilter={(p) => setFilters((prev) => ({ ...prev, pitch: p }))}
+        isDarkMode={isDarkMode}
+      />
+
+      <UsageStatisticsModal
+        isOpen={showUsageStats}
+        onClose={() => setShowUsageStats(false)}
+        voices={voicesWithNames}
+        usageRecords={cloudVoiceUsage}
+        usageLoaded={voiceUsageLoaded}
+        liveDelta={liveListeningDelta}
+        playingVoice={playingVoice}
+        onPlayToggle={handlePlayToggle}
+        onSelectVoice={handleSelectFavoriteVoice}
+        onClearUsage={handleClearUsageStats}
         isDarkMode={isDarkMode}
       />
 
@@ -1646,6 +2039,7 @@ const App: React.FC = () => {
           )}
         </>
       )}
+      <OfflineIndicator />
     </div>
   );
 };

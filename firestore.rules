@@ -169,6 +169,39 @@ service cloud.firestore {
         data.createdAt is timestamp;
     }
 
+    function isValidVoiceUsageStat(data, userId, voiceName) {
+      return data.keys().hasAll([
+          'userId',
+          'voiceName',
+          'playCount',
+          'totalSeconds',
+          'lastPlayedAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'userId',
+          'voiceName',
+          'playCount',
+          'totalSeconds',
+          'lastPlayedAt',
+          'updatedAt'
+        ]) &&
+        data.userId is string &&
+        isValidId(data.userId) &&
+        data.userId == request.auth.uid &&
+        data.userId == userId &&
+        isValidVoiceId(data.voiceName) &&
+        data.voiceName == voiceName &&
+        data.playCount is int &&
+        data.playCount >= 0 &&
+        data.playCount <= 1000000 &&
+        data.totalSeconds is number &&
+        data.totalSeconds >= 0 &&
+        data.totalSeconds <= 8640000 &&
+        data.lastPlayedAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
     // --- Collection Rules ---
     match /users/{userId} {
       allow get: if isValidId(userId) && isOwner(userId);
@@ -260,6 +293,31 @@ service cloud.firestore {
           hasWorkspaceAfter(userId);
         allow update: if false;
         allow delete: if isValidId(userId) && isValidId(castingId) && isOwner(userId) && hasWorkspace(userId);
+      }
+
+      match /voiceUsage/{voiceName} {
+        allow get: if isValidId(userId) && isValidVoiceId(voiceName) && isOwner(userId) && hasWorkspace(userId);
+        allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+        allow create: if isValidId(userId) &&
+          isValidVoiceId(voiceName) &&
+          isOwner(userId) &&
+          isValidVoiceUsageStat(incoming(), userId, voiceName) &&
+          incoming().lastPlayedAt == request.time &&
+          incoming().updatedAt == request.time &&
+          hasWorkspaceAfter(userId);
+        allow update: if isValidId(userId) &&
+          isValidVoiceId(voiceName) &&
+          isOwner(userId) &&
+          isValidVoiceUsageStat(incoming(), userId, voiceName) &&
+          incoming().userId == existing().userId &&
+          incoming().voiceName == existing().voiceName &&
+          incoming().playCount >= existing().playCount &&
+          incoming().totalSeconds >= existing().totalSeconds &&
+          incoming().lastPlayedAt == request.time &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['playCount', 'totalSeconds', 'lastPlayedAt', 'updatedAt']) &&
+          hasWorkspace(userId);
+        allow delete: if isValidId(userId) && isValidVoiceId(voiceName) && isOwner(userId) && hasWorkspace(userId);
       }
     }
   }

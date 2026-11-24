@@ -179,4 +179,20 @@ export const DIRTY_DOZEN_CASES = [
     },
     expected: 'PERMISSION_DENIED',
   },
+  {
+    id: 14,
+    name: 'Negative playCount or counter rollback on voiceUsage update',
+    auth: { uid: 'alice', token: { email: 'alice@example.com', email_verified: true } },
+    operation: 'create',
+    path: '/users/alice/voiceUsage/Zephyr',
+    payload: {
+      userId: 'alice',
+      voiceName: 'Zephyr',
+      playCount: -1,
+      totalSeconds: 12.5,
+      lastPlayedAt: 'REQUEST_TIME',
+      updatedAt: 'REQUEST_TIME',
+    },
+    expected: 'PERMISSION_DENIED',
+  },
 ] as const;

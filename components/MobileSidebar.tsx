@@ -18,6 +18,7 @@ import {
   Columns2,
   AudioLines,
   BarChart3,
+  Activity,
   LogOut,
   Loader2,
   Check,
@@ -27,6 +28,7 @@ import { FilterState } from '../types';
 import { useI18n } from '../i18n';
 import { useFirebase } from './FirebaseProvider';
 import PitchRangeFilter from './PitchRangeFilter';
+import PWAInstallButton from './PWAInstallButton';
 
 interface MobileSidebarProps {
   isOpen: boolean;
@@ -46,6 +48,7 @@ interface MobileSidebarProps {
   isVisualizerOpen: boolean;
   onToggleVisualizer: () => void;
   onOpenPitchChart: () => void;
+  onOpenUsageStats: () => void;
   onOpenGoogleDrive: () => void;
 }
 
@@ -67,6 +70,7 @@ const MobileSidebar: React.FC<MobileSidebarProps> = ({
   isVisualizerOpen,
   onToggleVisualizer,
   onOpenPitchChart,
+  onOpenUsageStats,
   onOpenGoogleDrive,
 }) => {
   const { language, setLanguage, t, translateGender, translatePitch } = useI18n();
@@ -369,6 +373,21 @@ const MobileSidebar: React.FC<MobileSidebarProps> = ({
                   <BarChart3 size={14} className="text-[#9C7A3C] dark:text-[#DFC589]" />
                   <span>{t.pitchDistribution}</span>
                 </button>
+
+                {/* Usage Statistics Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenUsageStats();
+                  }}
+                  className="w-full flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#FAF6EC] dark:bg-[#092E24] border border-[#D9CEB8] dark:border-[#C6A259]/25 text-[#072920] dark:text-[#FAF6EC] hover:bg-[#F4EDE0] dark:hover:bg-[#0D3A2E] hover:border-[#B49049]/60 dark:hover:border-[#C6A259]/45 transition-colors text-xs font-medium active:scale-[0.99]"
+                >
+                  <Activity size={14} className="text-[#9C7A3C] dark:text-[#DFC589]" />
+                  <span>{t.usageStats}</span>
+                </button>
+
+                <PWAInstallButton variant="sidebar" onAfterClick={onClose} />
 
                 {/* View Mode Toggle */}
                 <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-[#F4EDE0] dark:bg-[#092E24] border border-[#D9CEB8] dark:border-[#C6A259]/20">

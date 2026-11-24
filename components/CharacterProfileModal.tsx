@@ -35,6 +35,8 @@ import {
   getGeminiApiKeyHeaders,
   getGoogleDriveAccessToken,
   notifyGeminiQuotaUpdated,
+  recordVoicePlayInFirestore,
+  recordVoiceListenTimeInFirestore,
 } from '../firebase';
 import { useFirebase } from './FirebaseProvider';
 import {
@@ -65,7 +67,7 @@ const CharacterProfileModal: React.FC<CharacterProfileModalProps> = ({
   onClose,
 }) => {
   const { t, language, translateGender, translatePitch, translateTone } = useI18n();
-  const { driveConnected, driveBusy, connectGoogleDrive, disconnectGoogleDrive } = useFirebase();
+  const { user, driveConnected, driveBusy, connectGoogleDrive, disconnectGoogleDrive } = useFirebase();
   const [mmName, setMmName] = useState('');
   const [enName, setEnName] = useState('');
   const [transcript, setTranscript] = useState('');
@@ -87,9 +89,21 @@ const CharacterProfileModal: React.FC<CharacterProfileModalProps> = ({
   const objectUrlRef = useRef<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const ttsBlobCacheRef = useRef<Map<string, Blob>>(new Map());
+  const ttsSessionRef = useRef<{ voiceName: string; startedAtMs: number } | null>(null);
   const isMountedRef = useRef(true);
 
+  const flushTtsSession = useCallback(() => {
+    const session = ttsSessionRef.current;
+    if (!session) return;
+    ttsSessionRef.current = null;
+    const elapsedSec = Math.max(0, (performance.now() - session.startedAtMs) / 1000);
+    if (user?.uid && elapsedSec >= 0.1) {
+      void recordVoiceListenTimeInFirestore(user.uid, session.voiceName, elapsedSec).catch(() => {});
+    }
+  }, [user?.uid]);
+
   const stopModalAudio = useCallback(() => {
+    flushTtsSession();
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
@@ -109,7 +123,7 @@ const CharacterProfileModal: React.FC<CharacterProfileModalProps> = ({
       setIsPlayingTts(false);
       setIsGeneratingTts(false);
     }
-  }, []);
+  }, [flushTtsSession]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -271,9 +285,11 @@ const CharacterProfileModal: React.FC<CharacterProfileModalProps> = ({
       const audio = new Audio(objectUrl);
       audioRef.current = audio;
       audio.onended = () => {
+        flushTtsSession();
         if (isMountedRef.current) setIsPlayingTts(false);
       };
       audio.onerror = () => {
+        flushTtsSession();
         if (isMountedRef.current) {
           setIsPlayingTts(false);
           setTtsError(t.ttsFailedError);
@@ -281,6 +297,10 @@ const CharacterProfileModal: React.FC<CharacterProfileModalProps> = ({
       };
 
       await audio.play();
+      ttsSessionRef.current = { voiceName: voice.name, startedAtMs: performance.now() };
+      if (user?.uid) {
+        void recordVoicePlayInFirestore(user.uid, voice.name).catch(() => {});
+      }
       if (isMountedRef.current) {
         setIsPlayingTts(true);
       }

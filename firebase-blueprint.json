@@ -210,6 +210,53 @@
         }
       },
       "required": ["userId", "voiceName", "transcript", "updatedAt"]
+    },
+    "VoiceUsageStat": {
+      "title": "VoiceUsageStat",
+      "description": "Aggregated playback count and total audio duration consumed per voice for a user.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "voiceName": {
+          "type": "string",
+          "description": "Built-in voice identifier.",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "playCount": {
+          "type": "integer",
+          "description": "Total number of playback starts for this voice (0 to 1,000,000)."
+        },
+        "totalSeconds": {
+          "type": "number",
+          "description": "Cumulative audio duration listened in seconds (0 to 8,640,000)."
+        },
+        "lastPlayedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the most recent playback for this voice."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when this usage record was updated."
+        }
+      },
+      "required": [
+        "userId",
+        "voiceName",
+        "playCount",
+        "totalSeconds",
+        "lastPlayedAt",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -232,6 +279,10 @@
     "/users/{userId}/castingHistory/{castingId}": {
       "schema": { "$ref": "#/entities/CastingHistoryItem" },
       "description": "Saved AI Casting Director history items for the user."
+    },
+    "/users/{userId}/voiceUsage/{voiceName}": {
+      "schema": { "$ref": "#/entities/VoiceUsageStat" },
+      "description": "Per-voice playback count and cumulative audio listening time consumed by the user."
     }
   }
 }

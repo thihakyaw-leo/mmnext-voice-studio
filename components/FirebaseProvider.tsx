@@ -19,6 +19,7 @@ import {
   GEMINI_QUOTA_UPDATED_EVENT,
   GeminiDailyQuota,
   CastingHistoryRecord,
+  VoiceUsageRecord,
   UserWorkspacePrefs,
 } from '../firebase';
 import type { BurmeseCharacterName } from '../burmeseNames';
@@ -37,6 +38,8 @@ interface FirebaseContextValue {
   cloudCustomNames: Record<string, BurmeseCharacterName> | null;
   cloudCharacterTranscripts: Record<string, string> | null;
   cloudCastingHistory: CastingHistoryRecord[];
+  cloudVoiceUsage: VoiceUsageRecord[];
+  voiceUsageLoaded: boolean;
   cloudPreferences: UserWorkspacePrefs | null;
   dailyQuota: GeminiDailyQuota | null;
   refreshDailyQuota: () => Promise<void>;
@@ -74,6 +77,8 @@ export const FirebaseProvider: React.FC<{
     string
   > | null>(null);
   const [cloudCastingHistory, setCloudCastingHistory] = useState<CastingHistoryRecord[]>([]);
+  const [cloudVoiceUsage, setCloudVoiceUsage] = useState<VoiceUsageRecord[]>([]);
+  const [voiceUsageLoaded, setVoiceUsageLoaded] = useState(false);
   const [cloudPreferences, setCloudPreferences] = useState<UserWorkspacePrefs | null>(null);
   const [dailyQuota, setDailyQuota] = useState<GeminiDailyQuota | null>(null);
   const [fatalError, setFatalError] = useState<Error | null>(null);
@@ -128,6 +133,8 @@ export const FirebaseProvider: React.FC<{
         setCloudCustomNames(null);
         setCloudCharacterTranscripts(null);
         setCloudCastingHistory([]);
+        setCloudVoiceUsage([]);
+        setVoiceUsageLoaded(false);
         setCloudPreferences(null);
         setDailyQuota(null);
         setDriveError(null);
@@ -178,6 +185,12 @@ export const FirebaseProvider: React.FC<{
           onCastingHistory: (items) => {
             if (!cancelled) {
               setCloudCastingHistory(items);
+            }
+          },
+          onVoiceUsage: (records) => {
+            if (!cancelled) {
+              setCloudVoiceUsage(records);
+              setVoiceUsageLoaded(true);
             }
           },
           onPreferences: (nextPrefs) => {
@@ -307,6 +320,8 @@ export const FirebaseProvider: React.FC<{
         cloudCustomNames,
         cloudCharacterTranscripts,
         cloudCastingHistory,
+        cloudVoiceUsage,
+        voiceUsageLoaded,
         cloudPreferences,
         dailyQuota,
         refreshDailyQuota,

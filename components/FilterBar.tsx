@@ -18,6 +18,7 @@ import {
   Columns2,
   AudioLines,
   BarChart3,
+  Activity,
   Cloud,
   CloudOff,
   LogOut,
@@ -32,6 +33,7 @@ import { useI18n } from '../i18n';
 import { useFirebase } from './FirebaseProvider';
 import PitchRangeFilter from './PitchRangeFilter';
 import NetworkStatusIndicator from './NetworkStatusIndicator';
+import PWAInstallButton from './PWAInstallButton';
 
 interface FilterBarProps {
   filters: FilterState;
@@ -50,6 +52,7 @@ interface FilterBarProps {
   isVisualizerOpen: boolean;
   onToggleVisualizer: () => void;
   onOpenPitchChart: () => void;
+  onOpenUsageStats: () => void;
   onOpenLogin: () => void;
   onOpenApiKeySettings?: () => void;
   onOpenGoogleDrive: () => void;
@@ -72,6 +75,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
   isVisualizerOpen,
   onToggleVisualizer,
   onOpenPitchChart,
+  onOpenUsageStats,
   onOpenLogin,
   onOpenApiKeySettings,
   onOpenGoogleDrive,
@@ -201,6 +205,16 @@ const FilterBar: React.FC<FilterBarProps> = ({
 
               <button
                 type="button"
+                onClick={onOpenUsageStats}
+                className="p-2 rounded-lg bg-[#FAF6EC]/90 dark:bg-[#092E24]/85 border border-[#D9CEB8] dark:border-[#C6A259]/25 text-[#2B463B] dark:text-[#DFC589] hover:bg-[#EBE2CE] dark:hover:bg-[#114637] hover:text-[#06231B] dark:hover:text-[#FAF6EC] hover:border-[#B49049]/60 dark:hover:border-[#DFC589]/50 transition-all active:scale-95 shadow-xs"
+                title={t.usageStats}
+                aria-label={t.usageStats}
+              >
+                <Activity size={14} />
+              </button>
+
+              <button
+                type="button"
                 onClick={onOpenGoogleDrive}
                 className={`relative p-2 rounded-lg border transition-all active:scale-95 shadow-xs ${
                   driveConnected
@@ -215,6 +229,8 @@ const FilterBar: React.FC<FilterBarProps> = ({
                   <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#2E8267] ring-1 ring-[#FAF6EC] dark:ring-[#06231B]" />
                 )}
               </button>
+
+              <PWAInstallButton variant="header" />
 
               <button
                 type="button"
@@ -609,6 +625,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
 
         <div className="flex items-center gap-2 shrink-0">
           <NetworkStatusIndicator compact={true} />
+          <PWAInstallButton variant="compact" />
           <button
             type="button"
             onClick={onToggleVisualizer}

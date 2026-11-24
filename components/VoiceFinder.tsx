@@ -301,12 +301,12 @@ const VoiceFinder: React.FC<VoiceFinderProps> = ({
       {/* Modal Content */}
       <div
         ref={modalRef}
-        className="relative w-full max-w-2xl bg-[#FAF6EC] dark:bg-[#06231B] border border-[#D9CEB8] dark:border-[#C6A259]/28 luminous-hairline rounded-3xl shadow-2xl overflow-hidden animate-slide-up"
+        className="relative w-full max-w-2xl max-h-[90dvh] flex flex-col bg-[#FAF6EC] dark:bg-[#06231B] border border-[#D9CEB8] dark:border-[#C6A259]/28 luminous-hairline rounded-3xl shadow-2xl overflow-hidden animate-slide-up"
       >
         {/* Subtle Atmospheric Header Diffusion */}
         <div className="absolute top-0 inset-x-0 h-36 bg-gradient-to-b from-[#EBE2CE]/70 via-[#FAF6EC]/20 to-transparent dark:from-[#114637]/45 dark:via-[#06231B]/10 dark:to-transparent pointer-events-none"></div>
 
-        <div className="relative p-8 sm:p-10">
+        <div className="relative flex-1 min-h-0 overflow-y-auto custom-scrollbar overscroll-contain p-8 sm:p-10">
           <div className="flex justify-between items-start mb-8">
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-[#7D602D] dark:text-[#DFC589] mb-2">

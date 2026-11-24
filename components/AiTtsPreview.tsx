@@ -24,6 +24,8 @@ import {
   getGeminiApiKeyHeaders,
   getGoogleDriveAccessToken,
   notifyGeminiQuotaUpdated,
+  recordVoicePlayInFirestore,
+  recordVoiceListenTimeInFirestore,
 } from '../firebase';
 import {
   DriveAuthError,
@@ -48,7 +50,7 @@ const AiTtsPreview: React.FC<AiTtsPreviewProps> = ({
   visualizerVariant = 'wave',
 }) => {
   const { t, translateGender } = useI18n();
-  const { connectGoogleDrive, disconnectGoogleDrive } = useFirebase();
+  const { user, connectGoogleDrive, disconnectGoogleDrive } = useFirebase();
   const [selectedVoiceName, setSelectedVoiceName] = useState(voices[0]?.name || '');
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -62,9 +64,25 @@ const AiTtsPreview: React.FC<AiTtsPreviewProps> = ({
   const objectUrlRef = useRef<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const ttsBlobCacheRef = useRef<Map<string, Blob>>(new Map());
+  const previewSessionRef = useRef<{ voiceName: string; startedAtMs: number } | null>(null);
+  const userUidRef = useRef<string | null>(user?.uid || null);
+  userUidRef.current = user?.uid || null;
   const isMountedRef = useRef(true);
 
+  const flushPreviewSession = () => {
+    const session = previewSessionRef.current;
+    if (!session) return;
+    previewSessionRef.current = null;
+    const elapsedSec = Math.max(0, (performance.now() - session.startedAtMs) / 1000);
+    if (userUidRef.current && elapsedSec >= 0.1) {
+      void recordVoiceListenTimeInFirestore(userUidRef.current, session.voiceName, elapsedSec).catch(
+        () => {}
+      );
+    }
+  };
+
   const stopAudio = () => {
+    flushPreviewSession();
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
@@ -211,9 +229,11 @@ const AiTtsPreview: React.FC<AiTtsPreviewProps> = ({
       }
 
       audio.onended = () => {
+        flushPreviewSession();
         if (isMountedRef.current) setIsPlaying(false);
       };
       audio.onerror = () => {
+        flushPreviewSession();
         if (isMountedRef.current) {
           setIsPlaying(false);
           setError(t.ttsFailedError);
@@ -221,6 +241,10 @@ const AiTtsPreview: React.FC<AiTtsPreviewProps> = ({
       };
 
       await audio.play();
+      previewSessionRef.current = { voiceName: selectedVoiceName, startedAtMs: performance.now() };
+      if (userUidRef.current) {
+        void recordVoicePlayInFirestore(userUidRef.current, selectedVoiceName).catch(() => {});
+      }
       if (isMountedRef.current) {
         setIsPlaying(true);
       }

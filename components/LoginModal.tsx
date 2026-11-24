@@ -18,6 +18,7 @@ import {
 import { useI18n } from '../i18n';
 import { useFirebase } from './FirebaseProvider';
 import LegalPages, { PublicInfoPage } from './LegalPages';
+import PWAInstallButton from './PWAInstallButton';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -196,6 +197,7 @@ const LoginModal: React.FC<LoginModalProps> = ({
             </div>
 
             <div className="form-panel__top-actions">
+              <PWAInstallButton variant="header" />
               {/* Language Switcher */}
               <div
                 className="flex bg-[#eef1e8] dark:bg-[#092E24] p-0.5 rounded-lg border border-[#dfe2d8] dark:border-[#C6A259]/25"

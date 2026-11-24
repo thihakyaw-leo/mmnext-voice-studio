@@ -279,6 +279,28 @@ export interface TranslationDict {
   pickerUnsupportedFileNotice: string;
   pickerAudioPreviewLabel: string;
   pickerEmptyTextNotice: string;
+  usageStats: string;
+  usageStatsTitle: string;
+  usageStatsSubtitle: string;
+  usageMetricPlays: string;
+  usageMetricTime: string;
+  usageTotalAudioTime: string;
+  usageTotalPlays: string;
+  usageTopVoice: string;
+  usageVoicesExplored: (count: number) => string;
+  usageAvgPerPlay: (formatted: string) => string;
+  usageShareOfTotal: (percent: string) => string;
+  usageChartTopVoices: (shown: number, total: number) => string;
+  usageChartClickHint: string;
+  usageEmptyTitle: string;
+  usageEmptyDesc: string;
+  usageExploreVoicesBtn: string;
+  usageClearStats: string;
+  usageConfirmClearStats: string;
+  usagePlaysUnit: (count: number) => string;
+  usageLastPlayed: string;
+  usageLiveSession: string;
+  usageExportCsv: string;
 }
 
 const TRANSLATIONS: Record<Language, TranslationDict> = {
@@ -559,6 +581,29 @@ const TRANSLATIONS: Record<Language, TranslationDict> = {
     pickerUnsupportedFileNotice: 'Binary file selected — download or open in Drive to view.',
     pickerAudioPreviewLabel: 'Audio Preview',
     pickerEmptyTextNotice: 'The selected file has no readable text.',
+    usageStats: 'Usage Statistics',
+    usageStatsTitle: 'Usage Statistics',
+    usageStatsSubtitle: 'Most frequently played voices and total audio time consumed across your studio sessions',
+    usageMetricPlays: 'Play Count',
+    usageMetricTime: 'Audio Time',
+    usageTotalAudioTime: 'Total Audio Time',
+    usageTotalPlays: 'Total Plays',
+    usageTopVoice: 'Most Played Voice',
+    usageVoicesExplored: (count: number) => `Across ${count} ${count === 1 ? 'voice' : 'voices'}`,
+    usageAvgPerPlay: (formatted: string) => `Avg ${formatted} / play`,
+    usageShareOfTotal: (percent: string) => `${percent}% of total`,
+    usageChartTopVoices: (shown: number, total: number) =>
+      total > shown ? `Top ${shown} of ${total} played voices (D3)` : `${total} played ${total === 1 ? 'voice' : 'voices'} (D3)`,
+    usageChartClickHint: 'Hover bars for details or click a bar to focus that voice',
+    usageEmptyTitle: 'No playback activity recorded yet',
+    usageEmptyDesc: 'Play any voice sample, comparison track, or custom TTS transcript and your listening time and top voices will appear here automatically.',
+    usageExploreVoicesBtn: 'Explore Voices',
+    usageClearStats: 'Clear History',
+    usageConfirmClearStats: 'Confirm Clear',
+    usagePlaysUnit: (count: number) => `${count} ${count === 1 ? 'play' : 'plays'}`,
+    usageLastPlayed: 'Last played',
+    usageLiveSession: 'Live',
+    usageExportCsv: 'Export',
   },
   mm: {
     appTitle: 'MMNext Studio',
@@ -837,6 +882,29 @@ const TRANSLATIONS: Record<Language, TranslationDict> = {
     pickerUnsupportedFileNotice: 'ဤဖိုင်အမျိုးအစားကို တိုက်ရိုက်မဖတ်နိုင်ပါ — ဒေါင်းလုဒ်ဆွဲ၍ သို့မဟုတ် Drive တွင် ဖွင့်ကြည့်နိုင်ပါသည်။',
     pickerAudioPreviewLabel: 'အသံဖိုင် အစမ်းနားထောင်ရန်',
     pickerEmptyTextNotice: 'ရွေးချယ်ထားသော ဖိုင်တွင် စာသားမပါရှိပါ။',
+    usageStats: 'အသုံးပြုမှု စာရင်းအင်း',
+    usageStatsTitle: 'အသုံးပြုမှု စာရင်းအင်း',
+    usageStatsSubtitle: 'အများဆုံး နားထောင်ခဲ့သော အသံများနှင့် စုစုပေါင်း နားထောင်ချိန် မှတ်တမ်း',
+    usageMetricPlays: 'ဖွင့်ခဲ့သည့်အကြိမ်',
+    usageMetricTime: 'နားထောင်ချိန်',
+    usageTotalAudioTime: 'စုစုပေါင်း အသံနားထောင်ချိန်',
+    usageTotalPlays: 'စုစုပေါင်း ဖွင့်ကြိမ်',
+    usageTopVoice: 'အများဆုံးဖွင့်သော အသံ',
+    usageVoicesExplored: (count: number) => `အသံ ${count} မျိုး နားထောင်ပြီး`,
+    usageAvgPerPlay: (formatted: string) => `တစ်ကြိမ်ပျမ်းမျှ ${formatted}`,
+    usageShareOfTotal: (percent: string) => `စုစုပေါင်း၏ ${percent}%`,
+    usageChartTopVoices: (shown: number, total: number) =>
+      total > shown ? `အများဆုံး အသံ ${shown} ခု (စုစုပေါင်း ${total} ခု)` : `နားထောင်ခဲ့သော အသံ ${total} ခု (D3)`,
+    usageChartClickHint: 'အသေးစိတ်ကြည့်ရန် Bar ပေါ်တင်ပါ သို့မဟုတ် နှိပ်၍ ထိုအသံသို့ သွားပါ',
+    usageEmptyTitle: 'အသံနားထောင်မှု မှတ်တမ်း မရှိသေးပါ',
+    usageEmptyDesc: 'အသံနမူနာများ၊ နှိုင်းယှဉ်အသံများ သို့မဟုတ် TTS စာသားများကို နားထောင်လိုက်သည်နှင့် ဤနေရာတွင် အလိုအလျောက် စာရင်းသွင်းပေးပါမည်။',
+    usageExploreVoicesBtn: 'အသံများ ကြည့်ရှုမည်',
+    usageClearStats: 'မှတ်တမ်းရှင်းမည်',
+    usageConfirmClearStats: 'အတည်ပြု ရှင်းမည်',
+    usagePlaysUnit: (count: number) => `${count} ကြိမ်`,
+    usageLastPlayed: 'နောက်ဆုံးဖွင့်ချိန်',
+    usageLiveSession: 'လက်ရှိ',
+    usageExportCsv: 'Export CSV',
   },
 };
 

@@ -11,6 +11,11 @@ import { I18nProvider, useI18n } from './i18n';
 import FirebaseErrorBoundary from './components/FirebaseErrorBoundary';
 import { FirebaseProvider } from './components/FirebaseProvider';
 import type { UserWorkspacePrefs } from './firebase';
+import { registerSW } from 'virtual:pwa-register';
+
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  registerSW({ immediate: true });
+}
 
 const FirebaseAppRoot: React.FC = () => {
   const { language } = useI18n();
